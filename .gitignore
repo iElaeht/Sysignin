@@ -1,0 +1,18 @@
+# Evitar subir secretos
+.env
+
+# Archivos de compilación de Java/Maven
+target/
+*.class
+*.war
+
+# Archivos de configuración de VS Code y otros IDEs
+.vscode/
+.settings/
+.project
+.classpath
+.idea/
+*.iml
+
+# Logs del sistema
+*.log
