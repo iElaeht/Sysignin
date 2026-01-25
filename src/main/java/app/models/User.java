@@ -43,236 +43,237 @@ public class User {
     private LocalDateTime penaltyTime;
 
     public User() {}
-    
+
     public int getIdUser() {
-      return idUser;
+        return idUser;
     }
 
     public void setIdUser(int idUser) {
-      this.idUser = idUser;
+        this.idUser = idUser;
     }
 
     public String getUuidUser() {
-      return uuidUser;
+        return uuidUser;
     }
 
     public void setUuidUser(String uuidUser) {
-      this.uuidUser = uuidUser;
+        this.uuidUser = uuidUser;
     }
 
     public String getUsername() {
-      return username;
+        return username;
     }
 
     public void setUsername(String username) {
-      this.username = username;
+        this.username = username;
     }
 
     public String getPassword() {
-      return password;
+        return password;
     }
 
     public void setPassword(String password) {
-      this.password = password;
+        this.password = password;
     }
 
     public String getEmail() {
-      return email;
+        return email;
     }
 
     public void setEmail(String email) {
-      this.email = email;
+        this.email = email;
     }
 
     public String getBackupEmail() {
-      return backupEmail;
+        return backupEmail;
     }
 
     public void setBackupEmail(String backupEmail) {
-      this.backupEmail = backupEmail;
+        this.backupEmail = backupEmail;
     }
 
     public String getPhoneNumber() {
-      return phoneNumber;
+        return phoneNumber;
     }
 
     public void setPhoneNumber(String phoneNumber) {
-      this.phoneNumber = phoneNumber;
+        this.phoneNumber = phoneNumber;
     }
 
     public LocalDate getBirthDate() {
-      return birthDate;
+        return birthDate;
     }
 
     public void setBirthDate(LocalDate birthDate) {
-      this.birthDate = birthDate;
+        this.birthDate = birthDate;
     }
 
     public String getGender() {
-      return gender;
+        return gender;
     }
 
     public void setGender(String gender) {
-      this.gender = gender;
+        this.gender = gender;
     }
 
     public String getRegistrationIp() {
-      return registrationIp;
+        return registrationIp;
     }
 
     public void setRegistrationIp(String registrationIp) {
-      this.registrationIp = registrationIp;
+        this.registrationIp = registrationIp;
     }
 
     public String getLastIp() {
-      return lastIp;
+        return lastIp;
     }
 
     public void setLastIp(String lastIp) {
-      this.lastIp = lastIp;
+        this.lastIp = lastIp;
     }
 
     public String getCountry() {
-      return country;
+        return country;
     }
 
     public void setCountry(String country) {
-      this.country = country;
+        this.country = country;
     }
 
     public String getCity() {
-      return city;
+        return city;
     }
 
     public void setCity(String city) {
-      this.city = city;
+        this.city = city;
     }
 
     public String getDistrict() {
-      return district;
+        return district;
     }
 
     public void setDistrict(String district) {
-      this.district = district;
+        this.district = district;
     }
 
     public String getRoles() {
-      return roles;
+        return roles;
     }
 
     public void setRoles(String roles) {
-      this.roles = roles;
+        this.roles = roles;
     }
 
     public String getSocialId() {
-      return socialId;
+        return socialId;
     }
 
     public void setSocialId(String socialId) {
-      this.socialId = socialId;
+        this.socialId = socialId;
     }
 
     public String getAuthProvider() {
-      return authProvider;
+        return authProvider;
     }
 
     public void setAuthProvider(String authProvider) {
-      this.authProvider = authProvider;
+        this.authProvider = authProvider;
     }
 
     public String getProfilePicture() {
-      return profilePicture;
+        return profilePicture;
     }
 
     public void setProfilePicture(String profilePicture) {
-      this.profilePicture = profilePicture;
+        this.profilePicture = profilePicture;
     }
 
     public String getPreferredTheme() {
-      return preferredTheme;
+        return preferredTheme;
     }
 
     public void setPreferredTheme(String preferredTheme) {
-      this.preferredTheme = preferredTheme;
+        this.preferredTheme = preferredTheme;
     }
 
     public String getLanguages() {
-      return languages;
+        return languages;
     }
 
     public void setLanguages(String languages) {
-      this.languages = languages;
+        this.languages = languages;
     }
 
     public boolean isTwoFactorEnabled() {
-      return twoFactorEnabled;
+        return twoFactorEnabled;
     }
 
     public void setTwoFactorEnabled(boolean twoFactorEnabled) {
-      this.twoFactorEnabled = twoFactorEnabled;
+        this.twoFactorEnabled = twoFactorEnabled;
     }
 
     public boolean isDeleted() {
-      return isDeleted;
+        return isDeleted;
     }
 
     public void setDeleted(boolean isDeleted) {
-      this.isDeleted = isDeleted;
+        this.isDeleted = isDeleted;
     }
 
     public String getState() {
-      return state;
+        return state;
     }
 
     public void setState(String state) {
-      this.state = state;
+        this.state = state;
     }
 
     public String getToken() {
-      return token;
+        return token;
     }
 
     public void setToken(String token) {
-      this.token = token;
+        this.token = token;
     }
 
     public LocalDateTime getTokenExpiration() {
-      return tokenExpiration;
+        return tokenExpiration;
     }
 
     public void setTokenExpiration(LocalDateTime tokenExpiration) {
-      this.tokenExpiration = tokenExpiration;
+        this.tokenExpiration = tokenExpiration;
     }
 
     public int getTokenAttempts() {
-      return tokenAttempts;
+        return tokenAttempts;
     }
 
     public void setTokenAttempts(int tokenAttempts) {
-      this.tokenAttempts = tokenAttempts;
+        this.tokenAttempts = tokenAttempts;
     }
 
     public LocalDateTime getDateRegistration() {
-      return dateRegistration;
+        return dateRegistration;
     }
 
     public void setDateRegistration(LocalDateTime dateRegistration) {
-      this.dateRegistration = dateRegistration;
+        this.dateRegistration = dateRegistration;
     }
 
     public LocalDateTime getLastLogin() {
-      return lastLogin;
+        return lastLogin;
     }
 
     public void setLastLogin(LocalDateTime lastLogin) {
-      this.lastLogin = lastLogin;
+        this.lastLogin = lastLogin;
     }
 
     public LocalDateTime getPenaltyTime() {
-      return penaltyTime;
+        return penaltyTime;
     }
 
     public void setPenaltyTime(LocalDateTime penaltyTime) {
-      this.penaltyTime = penaltyTime;
+        this.penaltyTime = penaltyTime;
     }
+    
 }
