@@ -2,7 +2,6 @@ DROP DATABASE IF EXISTS Sysignin;
 CREATE DATABASE IF NOT EXISTS Sysignin;
 USE Sysignin;
 
--- 1. TABLA PRINCIPAL: Users
 CREATE TABLE Users (
     IdUser INT AUTO_INCREMENT PRIMARY KEY,
     UuidUser VARCHAR(36) NOT NULL UNIQUE,
@@ -45,7 +44,6 @@ CREATE TABLE Users (
     UNIQUE INDEX idx_Social_Auth (SocialId, AuthProvider)
 ) ENGINE=INNODB;
 
--- 2. TABLA: UserSessions (Control de sesiones activas)
 CREATE TABLE UserSessions (
     IdSession INT AUTO_INCREMENT PRIMARY KEY,
     UserUuid VARCHAR(36) NOT NULL,
@@ -61,7 +59,7 @@ CREATE TABLE UserSessions (
     FOREIGN KEY (UserUuid) REFERENCES Users(UuidUser) ON DELETE CASCADE
 ) ENGINE=INNODB;
 
--- 3. TABLA: Notifications (Sistema de alertas escalable)
+
 CREATE TABLE Notifications (
     IdNotification INT AUTO_INCREMENT PRIMARY KEY,
     UserUuid VARCHAR(36) NOT NULL,
@@ -73,7 +71,6 @@ CREATE TABLE Notifications (
     FOREIGN KEY (UserUuid) REFERENCES Users(UuidUser) ON DELETE CASCADE
 ) ENGINE=INNODB;
 
--- 4. TABLA: AuditLogs (Historial de acciones críticas)
 CREATE TABLE AuditLogs (
     IdLog INT AUTO_INCREMENT PRIMARY KEY,
     IdUser INT,
@@ -85,3 +82,15 @@ CREATE TABLE AuditLogs (
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (IdUser) REFERENCES Users(IdUser) ON DELETE SET NULL
 ) ENGINE=INNODB;
+
+CREATE TABLE SecurityTokens (
+    IdToken INT PRIMARY KEY AUTO_INCREMENT,
+    UserUuid VARCHAR(255) NOT NULL,
+    TokenType ENUM('EMAIL_CHANGE', 'PWD_CHANGE', 'RECOVERY_UPDATE') NOT NULL,
+    TokenCode VARCHAR(10) NOT NULL,
+    NewValue VARCHAR(255),
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ExpiresAt TIMESTAMP NOT NULL,
+    IsUsed BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (UserUuid) REFERENCES Users(UuidUser)
+);
