@@ -1,18 +1,17 @@
 package app.utils;
 
-import java.security.SecureRandom;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class TokenUtils {
 
-    // Genera un código de 6 dígitos numéricos (ej. 542189)
+    // Genera el token de 10 dígitos para el correo
     public static String generateNumericToken() {
-        SecureRandom random = new SecureRandom();
-        int number = 100000 + random.nextInt(900000);
+        long number = ThreadLocalRandom.current().nextLong(1000000000L, 10000000000L);
         return String.valueOf(number);
     }
 
-    // Genera un UUID para el campo UuidUser
+    // Genera el UUID único para el UuidUser
     public static String generateUUID() {
         return UUID.randomUUID().toString();
     }

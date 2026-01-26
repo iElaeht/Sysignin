@@ -1,28 +1,16 @@
 package app.utils;
 
-import java.util.regex.Pattern;
-
 public class ValidationUtils {
 
-    private static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@(.+)$";
-    private static final String PASS_REGEX = "^(?=.*[0-9])(?=.*[A-Z]).{8,}$";
-
-    public static String normalizeEmail(String email) {
-        if (email == null) return "";
-        return email.trim().toLowerCase();
-    }
-    public static String normalizePassword(String password) {
-        if (password == null) return "";
-        return password.trim();
-    }
-
     public static boolean isValidEmail(String email) {
-        if (email == null) return false;
-        return Pattern.compile(EMAIL_REGEX).matcher(email).matches();
+        String regex = "^[A-Za-z0-9+_.-]+@(.+)$";
+        return email != null && email.matches(regex);
     }
 
-    public static boolean isValidPassword(String password) {
-        if (password == null) return false;
-        return Pattern.compile(PASS_REGEX).matcher(password).matches();
+    public static boolean isSafeText(String text) {
+        // Evita scripts básicos o etiquetas HTML
+        if (text == null) return false;
+        String lower = text.toLowerCase();
+        return !lower.contains("<script>") && !lower.contains("href=");
     }
 }
