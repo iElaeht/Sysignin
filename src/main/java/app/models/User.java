@@ -43,6 +43,18 @@ public class User {
     private LocalDateTime penaltyTime;
 
     public User() {}
+    
+    public User(String uuidUser, String username, String email, String password, String registrationIp, String token) {
+        this.uuidUser = uuidUser;
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.registrationIp = registrationIp;
+        this.token = token;
+        this.state = "Inactive";
+        this.roles = "User";
+        this.dateRegistration = LocalDateTime.now();
+    }
 
     public int getIdUser() {
         return idUser;

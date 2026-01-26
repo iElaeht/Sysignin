@@ -16,6 +16,17 @@ public class UserSession {
 
     public UserSession() {}
 
+    // 2. Constructor Maestro (Para crear la sesión al momento del Login)
+    public UserSession(String userUuid, String deviceInfo, String ipAddress, boolean isTrusted) {
+        this.userUuid = userUuid;
+        this.deviceInfo = deviceInfo;
+        this.ipAddress = ipAddress;
+        this.isTrusted = isTrusted;
+        this.loginTime = LocalDateTime.now();
+        this.lastActivity = LocalDateTime.now();
+        this.isActive = true;
+    }
+
     public int getIdSession() {
         return idSession;
     }
