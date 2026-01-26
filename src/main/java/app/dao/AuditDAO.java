@@ -1,6 +1,6 @@
 package app.dao;
 
-import app.database.ConnectionDB;
+import app.config.ConnectionDB;
 import app.models.AuditLog;
 import java.sql.*;
 import java.util.ArrayList;
@@ -8,59 +8,57 @@ import java.util.List;
 
 public class AuditDAO {
 
-    // 1. CREATE: Insertar un nuevo log de auditoría
-    public boolean insertLog(AuditLog log) {
-        String sql = "INSERT INTO AuditLogs (IdUser, UserIdentifier, Action, IpSource, UserAgent, Details) VALUES (?, ?, ?, ?, ?, ?)";
-        
+    public void insertLog(Integer idUser, String identifier, String action, String ip, String userAgent, String details) {
+        String sql = "INSERT INTO AuditLogs (IdUser, UserIdentifier, Action, IpSource, UserAgent, Details, CreatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            
-            // Si el IdUser es 0 (porque falló el login y no tenemos el ID), mandamos NULL
-            if (log.getIdUser() > 0) {
-                ps.setInt(1, log.getIdUser());
-            } else {
-                ps.setNull(1, Types.INTEGER);
-            }
-            
-            ps.setString(2, log.getUserIdentifier());
-            ps.setString(3, log.getAction());
-            ps.setString(4, log.getIpSource());
-            ps.setString(5, log.getUserAgent());
-            ps.setString(6, log.getDetails());
-
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return false;
-        }
+            if (idUser != null) ps.setInt(1, idUser); else ps.setNull(1, Types.INTEGER);
+            ps.setString(2, identifier);
+            ps.setString(3, action);
+            ps.setString(4, ip);
+            ps.setString(5, userAgent);
+            ps.setString(6, details);
+            ps.setTimestamp(7, new Timestamp(System.currentTimeMillis()));
+            ps.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
     }
 
-    // 2. READ: Obtener historial de logs de un usuario específico (Uso de List)
     public List<AuditLog> getLogsByUser(String identifier) {
-        List<AuditLog> logs = new ArrayList<>();
-        String sql = "SELECT * FROM AuditLogs WHERE UserIdentifier = ? ORDER BY CreatedAt DESC";
-        
+        List<AuditLog> list = new ArrayList<>();
+        String sql = "SELECT * FROM AuditLogs WHERE UserIdentifier = ? ORDER BY CreatedAt DESC LIMIT 50";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            
             ps.setString(1, identifier);
             ResultSet rs = ps.executeQuery();
+            while (rs.next()) { list.add(mapAudit(rs)); }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return list;
+    }
 
-            while (rs.next()) {
-                AuditLog log = new AuditLog();
-                log.setIdLog(rs.getInt("IdLog"));
-                log.setIdUser(rs.getInt("IdUser"));
-                log.setUserIdentifier(rs.getString("UserIdentifier"));
-                log.setAction(rs.getString("Action"));
-                log.setIpSource(rs.getString("IpSource"));
-                log.setUserAgent(rs.getString("UserAgent"));
-                log.setDetails(rs.getString("Details"));
-                log.setCreatedAt(rs.getTimestamp("CreatedAt").toLocalDateTime());
-                logs.add(log);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return logs;
+    public int countRecentFailures(String ip, String action) {
+        String sql = "SELECT COUNT(*) FROM AuditLogs WHERE IpSource = ? AND Action = ? AND CreatedAt > DATE_SUB(NOW(), INTERVAL 1 HOUR)";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, ip);
+            ps.setString(2, action);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { e.printStackTrace(); }
+        return 0;
+    }
+
+    private AuditLog mapAudit(ResultSet rs) throws SQLException {
+        AuditLog log = new AuditLog();
+        log.setIdLog(rs.getInt("IdLog"));
+        int idUser = rs.getInt("IdUser");
+        log.setIdUser(rs.wasNull() ? null : idUser);
+        log.setUserIdentifier(rs.getString("UserIdentifier"));
+        log.setAction(rs.getString("Action"));
+        log.setIpSource(rs.getString("IpSource"));
+        log.setUserAgent(rs.getString("UserAgent"));
+        log.setDetails(rs.getString("Details"));
+        Timestamp ts = rs.getTimestamp("CreatedAt");
+        if (ts != null) log.setCreatedAt(ts.toLocalDateTime());
+        return log;
     }
 }
