@@ -1,6 +1,7 @@
 package app.utils;
 
-import javax.servlet.http.HttpServletRequest;
+// Cambiamos javax por jakarta
+import jakarta.servlet.http.HttpServletRequest;
 
 public class NetUtils {
 
@@ -14,8 +15,7 @@ public class NetUtils {
         }
         return remoteAddr;
     }
-
     public static String getUserAgent(HttpServletRequest request) {
-        return request.getHeader("User-Agent");
+        return (request != null) ? request.getHeader("User-Agent") : "Unknown";
     }
 }
