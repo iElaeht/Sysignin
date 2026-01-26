@@ -4,24 +4,30 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class User {
+    // Identificadores y Datos de Acceso
     private int idUser;
     private String uuidUser;
     private String username;
     private String password;
     private String email;
+    
+    // Seguridad y Recuperación (Rutas Alternas)
     private String backupEmail;
     private String phoneNumber;
+    private int securityPoints;
+
+    // Datos Personales
     private LocalDate birthDate;
     private String gender;
-    
-    // Ubicación
+
+    // Ubicación y Auditoría (NetUtils)
     private String registrationIp;
     private String lastIp;
     private String country;
     private String city;
     private String district;
 
-    // Configuración
+    // Configuración y Social
     private String roles;
     private String socialId;
     private String authProvider;
@@ -29,12 +35,12 @@ public class User {
     private String preferredTheme;
     private String languages;
 
-    // Seguridad y Estado
+    // Seguridad y Estado de Cuenta
     private boolean twoFactorEnabled;
     private boolean isDeleted;
     private String state;
 
-    // Tokens y Tiempos
+    // Control de Ataques y Tiempos
     private String token;
     private LocalDateTime tokenExpiration;
     private int tokenAttempts;
@@ -42,19 +48,8 @@ public class User {
     private LocalDateTime lastLogin;
     private LocalDateTime penaltyTime;
 
+    // Constructor vacío
     public User() {}
-    
-    public User(String uuidUser, String username, String email, String password, String registrationIp, String token) {
-        this.uuidUser = uuidUser;
-        this.username = username;
-        this.email = email;
-        this.password = password;
-        this.registrationIp = registrationIp;
-        this.token = token;
-        this.state = "Inactive";
-        this.roles = "User";
-        this.dateRegistration = LocalDateTime.now();
-    }
 
     public int getIdUser() {
         return idUser;
@@ -110,6 +105,14 @@ public class User {
 
     public void setPhoneNumber(String phoneNumber) {
         this.phoneNumber = phoneNumber;
+    }
+
+    public int getSecurityPoints() {
+        return securityPoints;
+    }
+
+    public void setSecurityPoints(int securityPoints) {
+        this.securityPoints = securityPoints;
     }
 
     public LocalDate getBirthDate() {
@@ -287,5 +290,5 @@ public class User {
     public void setPenaltyTime(LocalDateTime penaltyTime) {
         this.penaltyTime = penaltyTime;
     }
-    
+
 }

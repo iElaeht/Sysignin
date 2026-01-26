@@ -1,11 +1,12 @@
 package app.models;
+
 import java.time.LocalDateTime;
 
 public class UserSession {
     private int idSession;
     private String userUuid;
     private String deviceInfo;
-    private String deviceType;
+    private String deviceType; // Desktop, Mobile, Tablet, Unknown
     private String ipAddress;
     private String country;
     private String city;
@@ -15,17 +16,6 @@ public class UserSession {
     private boolean isActive;
 
     public UserSession() {}
-
-    // 2. Constructor Maestro (Para crear la sesión al momento del Login)
-    public UserSession(String userUuid, String deviceInfo, String ipAddress, boolean isTrusted) {
-        this.userUuid = userUuid;
-        this.deviceInfo = deviceInfo;
-        this.ipAddress = ipAddress;
-        this.isTrusted = isTrusted;
-        this.loginTime = LocalDateTime.now();
-        this.lastActivity = LocalDateTime.now();
-        this.isActive = true;
-    }
 
     public int getIdSession() {
         return idSession;
