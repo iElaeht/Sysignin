@@ -6,7 +6,7 @@ public class UserSession {
     private int idSession;
     private String userUuid;
     private String deviceInfo;
-    private String deviceType; // Desktop, Mobile, Tablet, Unknown
+    private String deviceType;
     private String ipAddress;
     private String country;
     private String city;

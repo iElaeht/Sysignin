@@ -1,19 +1,21 @@
 package app.models;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 public class SecurityToken {
     private int idToken;
     private String userUuid;
-    private String tokenType;
+    private String tokenType; 
     private String tokenCode;
     private String newValue;
-    private Timestamp createdAt;
-    private Timestamp expiresAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime expiresAt;
     private boolean isUsed;
 
-    // Constructores, Getters y Setters
-    public SecurityToken() {}
+    public SecurityToken() {
+        // Por defecto, al crear el objeto, la fecha es "ahora"
+        this.createdAt = LocalDateTime.now();
+    }
 
     public int getIdToken() {
         return idToken;
@@ -55,19 +57,19 @@ public class SecurityToken {
         this.newValue = newValue;
     }
 
-    public Timestamp getCreatedAt() {
+    public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(Timestamp createdAt) {
+    public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
 
-    public Timestamp getExpiresAt() {
+    public LocalDateTime getExpiresAt() {
         return expiresAt;
     }
 
-    public void setExpiresAt(Timestamp expiresAt) {
+    public void setExpiresAt(LocalDateTime expiresAt) {
         this.expiresAt = expiresAt;
     }
 
