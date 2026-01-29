@@ -2,35 +2,37 @@ package app.dao;
 
 import app.config.ConnectionDB;
 import app.models.User;
-import org.mindrot.jbcrypt.BCrypt;
 import java.sql.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDAO {
 
-    // --- REGISTRO Y ACTIVACIÓN ---
+    // --- 1. REGISTRO Y SEGURIDAD DE ACCESO ---
 
     public boolean registerUser(User user) {
-        // Sincronizado con tu SQL: incluye Uuid, Username, Password, Email, Ip, Country, City, Token y Expiración
-        String sql = "INSERT INTO Users (UuidUser, Username, Password, Email, RegistrationIp, Country, City, State, Token, TokenExpiration) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, 'Inactive', ?, DATE_ADD(NOW(), INTERVAL 2 HOUR))";
+        String sql = "INSERT INTO Users (UuidUser, Username, Password, Email, RegistrationIp, Country, City, Token, State, TokenExpiration, TokenAttempts) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Inactive', ?, 0)";
+        
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getUuidUser());
             ps.setString(2, user.getUsername());
-            // El hash se genera aquí para asegurar que NUNCA viaje texto plano a la DB
-            ps.setString(3, BCrypt.hashpw(user.getPassword(), BCrypt.gensalt(12)));
+            ps.setString(3, user.getPassword());
             ps.setString(4, user.getEmail());
             ps.setString(5, user.getRegistrationIp());
             ps.setString(6, user.getCountry());
             ps.setString(7, user.getCity());
             ps.setString(8, user.getToken());
+            ps.setTimestamp(9, Timestamp.valueOf(LocalDateTime.now().plusMinutes(15)));
             return ps.executeUpdate() > 0;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
 
     public boolean activateAccount(String email, String token) {
-        // Sincronizado: Activa cuenta y otorga el primer SecurityPoint
-        String sql = "UPDATE Users SET State = 'Active', Token = NULL, TokenExpiration = NULL WHERE Email = ? AND Token = ? AND TokenExpiration > NOW()";
+        String sql = "UPDATE Users SET State = 'Active', Token = NULL, TokenExpiration = NULL, TokenAttempts = 0 " +
+                     "WHERE Email = ? AND Token = ? AND TokenExpiration > NOW()";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, email);
@@ -38,123 +40,129 @@ public class UserDAO {
             return ps.executeUpdate() > 0;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
-
-    // --- BÚSQUEDAS (READ) ---
-
-    public User getUserByEmail(String email) {
-        String sql = "SELECT * FROM Users WHERE Email = ? AND IsDeleted = false";
+    public void incrementTokenAttempts(String email) {
+        String sql = "UPDATE Users SET TokenAttempts = TokenAttempts + 1 WHERE Email = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, email);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return mapUser(rs);
+            ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); }
-        return null;
     }
 
-    public User getUserByUuid(String uuid) {
-        String sql = "SELECT * FROM Users WHERE UuidUser = ? AND IsDeleted = false";
+    // --- 2. GESTIÓN DE SESIÓN Y LOGS ---
+
+    public void updateLastIp(String uuid, String ip) {
+        String sql = "UPDATE Users SET LastIp = ?, LastLogin = NOW() WHERE UuidUser = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, uuid);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return mapUser(rs);
+            ps.setString(1, ip);
+            ps.setString(2, uuid);
+            ps.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+
+    // --- 3. CRUD COMPLETO (Listar, Buscar, Actualizar, Eliminar) ---
+
+    public List<User> getAllUsers() {
+        List<User> list = new ArrayList<>();
+        String sql = "SELECT * FROM Users WHERE IsDeleted = false ORDER BY DateRegistration DESC";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) { list.add(mapUser(rs)); }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return list;
+    }
+
+    public User getUserByEmail(String identifier) {
+        // Buscamos por Email o Username (muy útil para el login)
+        String sql = "SELECT * FROM Users WHERE (Email = ? OR Username = ?) AND IsDeleted = false";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, identifier);
+            ps.setString(2, identifier);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return mapUser(rs);
+            }
         } catch (SQLException e) { e.printStackTrace(); }
         return null;
     }
-
-    // --- ACTUALIZACIONES DE PERFIL Y SEGURIDAD (UPDATE) ---
-
     public boolean updateProfile(User user) {
-        String sql = "UPDATE Users SET Username = ?, PhoneNumber = ?, Gender = ? WHERE UuidUser = ?";
+        String sql = "UPDATE Users SET Username = ?, PhoneNumber = ?, Gender = ?, Country = ?, City = ? WHERE UuidUser = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getUsername());
             ps.setString(2, user.getPhoneNumber());
             ps.setString(3, user.getGender());
-            ps.setString(4, user.getUuidUser());
+            ps.setString(4, user.getCountry());
+            ps.setString(5, user.getCity());
+            ps.setString(6, user.getUuidUser());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
 
-    // Sincronización: Actualización de Contraseña tras validar Token
-    public boolean updatePassword(String uuid, String newPassword) {
-        String sql = "UPDATE Users SET Password = ? WHERE UuidUser = ?";
+    public boolean changeState(String uuid, String newState) {
+        // Esto permite al admin cambiar a 'Active', 'Ban', 'Suspicious', etc.
+        String sql = "UPDATE Users SET State = ? WHERE UuidUser = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, BCrypt.hashpw(newPassword, BCrypt.gensalt(12)));
+            ps.setString(1, newState);
             ps.setString(2, uuid);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
-
-    // Sincronización: Actualización de Email Principal tras doble validación
-    public boolean updateEmail(String uuid, String newEmail) {
-        String sql = "UPDATE Users SET Email = ? WHERE UuidUser = ?";
-        try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, newEmail);
-            ps.setString(2, uuid);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) { e.printStackTrace(); return false; }
-    }
-
-    // Sincronización: Actualización de Correo de Recuperación
-    public boolean updateBackupEmail(String uuid, String backupEmail) {
-        String sql = "UPDATE Users SET BackupEmail = ? WHERE UuidUser = ?";
-        try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, backupEmail);
-            ps.setString(2, uuid);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) { e.printStackTrace(); return false; }
-    }
-
-    // --- BORRADO LÓGICO ---
 
     public boolean softDelete(String uuid) {
-        String sql = "UPDATE Users SET IsDeleted = true, State = 'Inactive' WHERE UuidUser = ?";
+        // Eliminación lógica: no borramos el dato, lo ocultamos
+        String sql = "UPDATE Users SET IsDeleted = true WHERE UuidUser = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, uuid);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
-    // --- MÉTODOS PARA ADMINISTRACIÓN (NUEVOS) ---
 
-    // 1. Obtener todos los usuarios para el panel de administración
-    public java.util.List<User> getAllUsers() {
-        java.util.List<User> list = new java.util.ArrayList<>();
-        // Traemos a todos los que no han sido borrados definitivamente
-        String sql = "SELECT * FROM Users WHERE IsDeleted = false ORDER BY CreatedAt DESC";
+    // --- 4. MÉTODO DE LIMPIEZA AUTOMÁTICA (Para tu idea) ---
+
+    public int cleanInactiveAccounts(int hours) {
+        // Borra solo si el estado es Inactive (no Ban ni Active) y pasó el tiempo
+        String sql = "DELETE FROM Users WHERE State = 'Inactive' AND DateRegistration < DATE_SUB(NOW(), INTERVAL ? HOUR)";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                list.add(mapUser(rs));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return list;
+            ps.setInt(1, hours);
+            return ps.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); return 0; }
     }
-
-    // 2. Actualizar estado (Banned, Active, Inactive) desde el Admin
-    public boolean updateStatus(String uuid, String newStatus) {
-        // Sincronizado con el ENUM 'State' de tu base de datos
-        String sql = "UPDATE Users SET State = ? WHERE UuidUser = ?";
+    public boolean updateToken(String email, String token) {
+        String sql = "UPDATE Users SET Token = ?, TokenExpiration = ?, TokenAttempts = 0 WHERE Email = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, newStatus);
-            ps.setString(2, uuid);
+            ps.setString(1, token);
+            // El token vive 15 min, pero el Service controlará el cooldown de 30s
+            ps.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now().plusMinutes(15)));
+            ps.setString(3, email);
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return false;
-        }
+        } catch (SQLException e) { e.printStackTrace(); return false; }
+    }
+    public void resetAttempts(String email) {
+        String sql = "UPDATE Users SET TokenAttempts = 0 WHERE Email = ?";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            ps.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+    public void applyPenalty(String email, int minutes) {
+        String sql = "UPDATE Users SET PenaltyTime = ? WHERE Email = ?";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now().plusMinutes(minutes)));
+            ps.setString(2, email);
+            ps.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
     }
 
-    // --- MAPEADOR ---
+    // --- 5. MAPEADOR ---
 
     private User mapUser(ResultSet rs) throws SQLException {
         User u = new User();
@@ -163,11 +171,27 @@ public class UserDAO {
         u.setUsername(rs.getString("Username"));
         u.setPassword(rs.getString("Password"));
         u.setEmail(rs.getString("Email"));
-        u.setBackupEmail(rs.getString("BackupEmail")); // Sincronizado
-        u.setState(rs.getString("State"));
+        u.setBackupEmail(rs.getString("BackupEmail"));
         u.setPhoneNumber(rs.getString("PhoneNumber"));
         u.setGender(rs.getString("Gender"));
-        u.setRoles(rs.getString("Roles")); // Sincronizado con ENUM
+        u.setRoles(rs.getString("Roles"));
+        u.setState(rs.getString("State"));
+        u.setToken(rs.getString("Token"));
+        u.setTokenAttempts(rs.getInt("TokenAttempts"));
+        u.setRegistrationIp(rs.getString("RegistrationIp"));
+        u.setLastIp(rs.getString("LastIp"));
+        u.setCountry(rs.getString("Country"));
+        u.setCity(rs.getString("City"));
+
+        Timestamp tsExp = rs.getTimestamp("TokenExpiration");
+        if (tsExp != null) u.setTokenExpiration(tsExp.toLocalDateTime());
+        
+        Timestamp tsReg = rs.getTimestamp("DateRegistration");
+        if (tsReg != null) u.setDateRegistration(tsReg.toLocalDateTime());
+
+        Timestamp tsLogin = rs.getTimestamp("LastLogin");
+        if (tsLogin != null) u.setLastLogin(tsLogin.toLocalDateTime());
+        
         return u;
     }
 }

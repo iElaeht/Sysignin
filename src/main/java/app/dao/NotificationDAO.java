@@ -3,12 +3,13 @@ package app.dao;
 import app.config.ConnectionDB;
 import app.models.Notification;
 import java.sql.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 public class NotificationDAO {
 
-    // 1. Crear Notificación: Sincronizado con los tipos ENUM ('Security', 'System', 'Social', 'Alert')
+    // 1. Crear Notificación
     public void createNotification(String userUuid, String title, String message, String type) {
         String sql = "INSERT INTO Notifications (UserUuid, Title, Message, Type) VALUES (?, ?, ?, ?)";
         try (Connection conn = ConnectionDB.getConnection();
@@ -23,45 +24,66 @@ public class NotificationDAO {
         }
     }
 
-    // 2. Obtener las últimas notificaciones del usuario (Sincronizado con IsRead)
+    // 2. Obtener las últimas notificaciones (Usa List y ArrayList)
     public List<Notification> getByUser(String userUuid) {
         List<Notification> list = new ArrayList<>();
-        // Traemos las 20 más recientes para que el usuario tenga historial
         String sql = "SELECT * FROM Notifications WHERE UserUuid = ? ORDER BY CreatedAt DESC LIMIT 20";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, userUuid);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                list.add(mapNotification(rs));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapNotification(rs));
+                }
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+        }
         return list;
     }
 
-    // 3. Sincronización: Marcar notificación como leída
+    // 3. Marcar una como leída
     public boolean markAsRead(int idNotification) {
         String sql = "UPDATE Notifications SET IsRead = true WHERE IdNotification = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, idNotification);
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) { e.printStackTrace(); return false; }
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+            return false; 
+        }
     }
 
-    // 4. Sincronización: Contar notificaciones no leídas (Para el "badge" o globito rojo en la UI)
+    // 4. NUEVO: Marcar todas como leídas (Para comodidad del usuario)
+    public boolean markAllAsRead(String userUuid) {
+        String sql = "UPDATE Notifications SET IsRead = true WHERE UserUuid = ? AND IsRead = false";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, userUuid);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+            return false; 
+        }
+    }
+
+    // 5. Contar no leídas (Para la UI)
     public int countUnread(String userUuid) {
         String sql = "SELECT COUNT(*) FROM Notifications WHERE UserUuid = ? AND IsRead = false";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, userUuid);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getInt(1);
-        } catch (SQLException e) { e.printStackTrace(); }
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+        }
         return 0;
     }
 
-    // 5. Mapeador privado
+    // 6. Mapeador privado (Aquí es donde se usa LocalDateTime)
     private Notification mapNotification(ResultSet rs) throws SQLException {
         Notification n = new Notification();
         n.setIdNotification(rs.getInt("IdNotification"));
@@ -70,8 +92,12 @@ public class NotificationDAO {
         n.setMessage(rs.getString("Message"));
         n.setType(rs.getString("Type"));
         n.setRead(rs.getBoolean("IsRead"));
+        
         Timestamp ts = rs.getTimestamp("CreatedAt");
-        if (ts != null) n.setCreatedAt(ts.toLocalDateTime());
+        if (ts != null) {
+            LocalDateTime createdAt = ts.toLocalDateTime();
+            n.setCreatedAt(createdAt);
+        }
         return n;
     }
 }
