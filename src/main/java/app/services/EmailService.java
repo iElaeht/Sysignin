@@ -167,7 +167,7 @@ public class EmailService {
                "  padding:20px; " +
                "  text-align:center; " +
                "  font-size:32px; " +
-               "  font-weight:800; " + // Negrita resaltada
+               "  font-weight:800; " +
                "  letter-spacing:6px; " +
                "  border-radius:12px; " +
                "  margin:25px auto; " +
