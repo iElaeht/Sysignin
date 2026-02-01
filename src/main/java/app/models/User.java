@@ -43,6 +43,7 @@ public class User {
     private String token;
     private LocalDateTime tokenExpiration;
     private int tokenAttempts;
+    private int LoginAttempts;
     private LocalDateTime dateRegistration;
     private LocalDateTime lastLogin;
     private LocalDateTime penaltyTime;
@@ -202,6 +203,12 @@ public class User {
     }
     public int getTokenAttempts() {
         return tokenAttempts;
+    }
+    public int getLoginAttempts() {
+        return LoginAttempts;
+    }
+    public void setLoginAttempts(int loginAttempts) {
+        LoginAttempts = loginAttempts;
     }
     public void setTokenAttempts(int tokenAttempts) {
         this.tokenAttempts = tokenAttempts;
