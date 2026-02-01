@@ -3,33 +3,45 @@ package app.dao;
 import app.config.ConnectionDB;
 import app.models.Notification;
 import java.sql.*;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * DAO: NotificationDAO
+ * Descripción: Gestión de persistencia para el sistema de notificaciones.
+ */
 public class NotificationDAO {
 
-    // 1. Crear Notificación
+    // ======================================================
+    // 1. CREACIÓN
+    // ======================================================
+
     public void createNotification(String userUuid, String title, String message, String type) {
         String sql = "INSERT INTO Notifications (UserUuid, Title, Message, Type) VALUES (?, ?, ?, ?)";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+            
             ps.setString(1, userUuid);
             ps.setString(2, title);
             ps.setString(3, message);
             ps.setString(4, type);
             ps.executeUpdate();
+            
         } catch (SQLException e) { 
             System.err.println("Error al crear notificación: " + e.getMessage());
         }
     }
 
-    // 2. Obtener las últimas notificaciones (Usa List y ArrayList)
+    // ======================================================
+    // 2. CONSULTAS
+    // ======================================================
+
     public List<Notification> getByUser(String userUuid) {
         List<Notification> list = new ArrayList<>();
         String sql = "SELECT * FROM Notifications WHERE UserUuid = ? ORDER BY CreatedAt DESC LIMIT 20";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+            
             ps.setString(1, userUuid);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -42,37 +54,11 @@ public class NotificationDAO {
         return list;
     }
 
-    // 3. Marcar una como leída
-    public boolean markAsRead(int idNotification) {
-        String sql = "UPDATE Notifications SET IsRead = true WHERE IdNotification = ?";
-        try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, idNotification);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) { 
-            e.printStackTrace(); 
-            return false; 
-        }
-    }
-
-    // 4. NUEVO: Marcar todas como leídas (Para comodidad del usuario)
-    public boolean markAllAsRead(String userUuid) {
-        String sql = "UPDATE Notifications SET IsRead = true WHERE UserUuid = ? AND IsRead = false";
-        try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, userUuid);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) { 
-            e.printStackTrace(); 
-            return false; 
-        }
-    }
-
-    // 5. Contar no leídas (Para la UI)
     public int countUnread(String userUuid) {
         String sql = "SELECT COUNT(*) FROM Notifications WHERE UserUuid = ? AND IsRead = false";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+            
             ps.setString(1, userUuid);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1);
@@ -83,7 +69,44 @@ public class NotificationDAO {
         return 0;
     }
 
-    // 6. Mapeador privado (Aquí es donde se usa LocalDateTime)
+    // ======================================================
+    // 3. ACTUALIZACIONES (SEGURIDAD APLICADA)
+    // ======================================================
+
+    public boolean markAsRead(int idNotification, String userUuid) {
+        // Blindaje: El UserUuid asegura que el usuario solo modifique sus propias notificaciones
+        String sql = "UPDATE Notifications SET IsRead = true WHERE IdNotification = ? AND UserUuid = ?";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, idNotification);
+            ps.setString(2, userUuid);
+            return ps.executeUpdate() > 0;
+            
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+            return false; 
+        }
+    }
+
+    public boolean markAllAsRead(String userUuid) {
+        String sql = "UPDATE Notifications SET IsRead = true WHERE UserUuid = ? AND IsRead = false";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setString(1, userUuid);
+            return ps.executeUpdate() > 0;
+            
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+            return false; 
+        }
+    }
+
+    // ======================================================
+    // 4. MAPEADOR (JDBC -> MODEL)
+    // ======================================================
+
     private Notification mapNotification(ResultSet rs) throws SQLException {
         Notification n = new Notification();
         n.setIdNotification(rs.getInt("IdNotification"));
@@ -95,8 +118,8 @@ public class NotificationDAO {
         
         Timestamp ts = rs.getTimestamp("CreatedAt");
         if (ts != null) {
-            LocalDateTime createdAt = ts.toLocalDateTime();
-            n.setCreatedAt(createdAt);
+            // Esta línea es la que valida la necesidad del import java.time.LocalDateTime
+            n.setCreatedAt(ts.toLocalDateTime());
         }
         return n;
     }

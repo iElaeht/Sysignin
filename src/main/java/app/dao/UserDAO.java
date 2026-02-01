@@ -7,13 +7,20 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * DAO: UserDAO
+ * Estado: Optimizado y Limpio
+ * Descripción: Maneja la persistencia de usuarios, seguridad de tokens y control de acceso.
+ */
 public class UserDAO {
 
-    // --- 1. REGISTRO Y SEGURIDAD DE ACCESO ---
+    // ======================================================
+    // 1. REGISTRO Y ACTIVACIÓN
+    // ======================================================
 
     public boolean registerUser(User user) {
-        String sql = "INSERT INTO Users (UuidUser, Username, Password, Email, RegistrationIp, Country, City, Token, State, TokenExpiration, TokenAttempts) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Inactive', ?, 0)";
+        String sql = "INSERT INTO Users (UuidUser, Username, Password, Email, RegistrationIp, Country, City, Token, State, TokenExpiration, TokenAttempts, LoginAttempts) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Inactive', DATE_ADD(NOW(), INTERVAL 15 MINUTE), 0, 0)";
         
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -25,23 +32,48 @@ public class UserDAO {
             ps.setString(6, user.getCountry());
             ps.setString(7, user.getCity());
             ps.setString(8, user.getToken());
-            ps.setTimestamp(9, Timestamp.valueOf(LocalDateTime.now().plusMinutes(15)));
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) { e.printStackTrace(); return false; }
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+            return false; 
+        }
     }
 
     public boolean activateAccount(String email, String token) {
         String sql = "UPDATE Users SET State = 'Active', Token = NULL, TokenExpiration = NULL, TokenAttempts = 0 " +
-                     "WHERE Email = ? AND Token = ? AND TokenExpiration > NOW()";
+                     "WHERE Email = ? AND Token = ? AND TokenExpiration > NOW() " + 
+                     "AND (PenaltyTime IS NULL OR PenaltyTime < NOW())";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, email);
             ps.setString(2, token);
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) { e.printStackTrace(); return false; }
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+            return false; 
+        }
     }
+
+    public boolean updateToken(String email, String token) {
+        String sql = "UPDATE Users SET Token = ?, TokenExpiration = DATE_ADD(NOW(), INTERVAL 1 MINUTE), TokenAttempts = 0 " + 
+                     "WHERE Email = ? AND (PenaltyTime IS NULL OR PenaltyTime < NOW()) AND IsDeleted = false";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, token);
+            ps.setString(2, email);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+            return false; 
+        }
+    }
+
+    // ======================================================
+    // 2. SEGURIDAD Y CONTROL DE INTENTOS
+    // ======================================================
+
     public void incrementTokenAttempts(String email) {
-        String sql = "UPDATE Users SET TokenAttempts = TokenAttempts + 1 WHERE Email = ?";
+        String sql = "UPDATE Users SET TokenAttempts = LEAST(TokenAttempts + 1, 5) WHERE Email = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, email);
@@ -49,33 +81,39 @@ public class UserDAO {
         } catch (SQLException e) { e.printStackTrace(); }
     }
 
-    // --- 2. GESTIÓN DE SESIÓN Y LOGS ---
-
-    public void updateLastIp(String uuid, String ip) {
-        String sql = "UPDATE Users SET LastIp = ?, LastLogin = NOW() WHERE UuidUser = ?";
+    public void incrementLoginAttempts(String email) {
+        String sql = "UPDATE Users SET LoginAttempts = LoginAttempts + 1 WHERE Email = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, ip);
-            ps.setString(2, uuid);
+            ps.setString(1, email);
             ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); }
     }
 
-    // --- 3. CRUD COMPLETO (Listar, Buscar, Actualizar, Eliminar) ---
-
-    public List<User> getAllUsers() {
-        List<User> list = new ArrayList<>();
-        String sql = "SELECT * FROM Users WHERE IsDeleted = false ORDER BY DateRegistration DESC";
+    public void applyPenalty(String email, int minutes) {
+        String sql = "UPDATE Users SET PenaltyTime = DATE_ADD(NOW(), INTERVAL ? MINUTE), TokenAttempts = 5 WHERE Email = ?";
         try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) { list.add(mapUser(rs)); }
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, minutes);
+            ps.setString(2, email);
+            ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); }
-        return list;
     }
 
+    public void resetAttempts(String email) {
+        String sql = "UPDATE Users SET TokenAttempts = 0, LoginAttempts = 0, PenaltyTime = NULL WHERE Email = ?";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            ps.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+
+    // ======================================================
+    // 3. BÚSQUEDAS Y CONSULTAS
+    // ======================================================
+
     public User getUserByEmail(String identifier) {
-        // Buscamos por Email o Username (muy útil para el login)
         String sql = "SELECT * FROM Users WHERE (Email = ? OR Username = ?) AND IsDeleted = false";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -87,6 +125,56 @@ public class UserDAO {
         } catch (SQLException e) { e.printStackTrace(); }
         return null;
     }
+
+    public User getUserByUuid(String uuid) {
+        String sql = "SELECT * FROM Users WHERE UuidUser = ? AND IsDeleted = false";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, uuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return mapUser(rs);
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return null;
+    }
+
+    public List<User> getAllUsers() {
+        List<User> list = new ArrayList<>();
+        String sql = "SELECT * FROM Users WHERE IsDeleted = false ORDER BY DateRegistration DESC";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) { 
+                list.add(mapUser(rs)); 
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return list;
+    }
+
+    // ======================================================
+    // 4. ACTUALIZACIONES DE PERFIL
+    // ======================================================
+
+    public boolean updatePassword(String uuid, String newHashedPassword) {
+        String sql = "UPDATE Users SET Password = ? WHERE UuidUser = ?";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newHashedPassword);
+            ps.setString(2, uuid);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { e.printStackTrace(); return false; }
+    }
+
+    public boolean updateEmail(String uuid, String newEmail) {
+        String sql = "UPDATE Users SET Email = ? WHERE UuidUser = ?";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newEmail);
+            ps.setString(2, uuid);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { e.printStackTrace(); return false; }
+    }
+
     public boolean updateProfile(User user) {
         String sql = "UPDATE Users SET Username = ?, PhoneNumber = ?, Gender = ?, Country = ?, City = ? WHERE UuidUser = ?";
         try (Connection conn = ConnectionDB.getConnection();
@@ -101,8 +189,21 @@ public class UserDAO {
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
 
+    public void updateLastIp(String uuid, String ip) {
+        String sql = "UPDATE Users SET LastIp = ?, LastLogin = NOW() WHERE UuidUser = ?";
+        try (Connection conn = ConnectionDB.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, ip);
+            ps.setString(2, uuid);
+            ps.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+
+    // ======================================================
+    // 5. ADMINISTRACIÓN Y MANTENIMIENTO
+    // ======================================================
+
     public boolean changeState(String uuid, String newState) {
-        // Esto permite al admin cambiar a 'Active', 'Ban', 'Suspicious', etc.
         String sql = "UPDATE Users SET State = ? WHERE UuidUser = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -113,7 +214,6 @@ public class UserDAO {
     }
 
     public boolean softDelete(String uuid) {
-        // Eliminación lógica: no borramos el dato, lo ocultamos
         String sql = "UPDATE Users SET IsDeleted = true WHERE UuidUser = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -122,10 +222,7 @@ public class UserDAO {
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
 
-    // --- 4. MÉTODO DE LIMPIEZA AUTOMÁTICA (Para tu idea) ---
-
     public int cleanInactiveAccounts(int hours) {
-        // Borra solo si el estado es Inactive (no Ban ni Active) y pasó el tiempo
         String sql = "DELETE FROM Users WHERE State = 'Inactive' AND DateRegistration < DATE_SUB(NOW(), INTERVAL ? HOUR)";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -133,36 +230,10 @@ public class UserDAO {
             return ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); return 0; }
     }
-    public boolean updateToken(String email, String token) {
-        String sql = "UPDATE Users SET Token = ?, TokenExpiration = ?, TokenAttempts = 0 WHERE Email = ?";
-        try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, token);
-            // El token vive 15 min, pero el Service controlará el cooldown de 30s
-            ps.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now().plusMinutes(15)));
-            ps.setString(3, email);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) { e.printStackTrace(); return false; }
-    }
-    public void resetAttempts(String email) {
-        String sql = "UPDATE Users SET TokenAttempts = 0 WHERE Email = ?";
-        try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            ps.executeUpdate();
-        } catch (SQLException e) { e.printStackTrace(); }
-    }
-    public void applyPenalty(String email, int minutes) {
-        String sql = "UPDATE Users SET PenaltyTime = ? WHERE Email = ?";
-        try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now().plusMinutes(minutes)));
-            ps.setString(2, email);
-            ps.executeUpdate();
-        } catch (SQLException e) { e.printStackTrace(); }
-    }
 
-    // --- 5. MAPEADOR ---
+    // ======================================================
+    // 6. MAPEADOR (JDBC -> MODEL)
+    // ======================================================
 
     private User mapUser(ResultSet rs) throws SQLException {
         User u = new User();
@@ -178,17 +249,29 @@ public class UserDAO {
         u.setState(rs.getString("State"));
         u.setToken(rs.getString("Token"));
         u.setTokenAttempts(rs.getInt("TokenAttempts"));
+        u.setLoginAttempts(rs.getInt("LoginAttempts"));
         u.setRegistrationIp(rs.getString("RegistrationIp"));
         u.setLastIp(rs.getString("LastIp"));
         u.setCountry(rs.getString("Country"));
         u.setCity(rs.getString("City"));
+        u.setSocialId(rs.getString("SocialId"));
+        u.setAuthProvider(rs.getString("AuthProvider"));
 
+        // Conversión segura de Timestamps a LocalDateTime
+        // Conversión explicita para que el IDE reconozca el uso del import
+        Timestamp tsPenalty = rs.getTimestamp("PenaltyTime");
+        if (tsPenalty != null) {
+            LocalDateTime penaltyTime = tsPenalty.toLocalDateTime();
+            u.setPenaltyTime(penaltyTime);
+        }
         Timestamp tsExp = rs.getTimestamp("TokenExpiration");
-        if (tsExp != null) u.setTokenExpiration(tsExp.toLocalDateTime());
-        
+        if (tsExp != null) {
+            LocalDateTime expirationTime = tsExp.toLocalDateTime();
+            u.setTokenExpiration(expirationTime);
+        }
         Timestamp tsReg = rs.getTimestamp("DateRegistration");
         if (tsReg != null) u.setDateRegistration(tsReg.toLocalDateTime());
-
+        
         Timestamp tsLogin = rs.getTimestamp("LastLogin");
         if (tsLogin != null) u.setLastLogin(tsLogin.toLocalDateTime());
         
