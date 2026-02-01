@@ -94,7 +94,7 @@ public class UserDAO {
         String sql = "UPDATE Users SET PenaltyTime = DATE_ADD(NOW(), INTERVAL ? MINUTE), TokenAttempts = 5 WHERE Email = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, minutes);
+            ps.setInt(10, minutes);
             ps.setString(2, email);
             ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); }

@@ -96,7 +96,7 @@ public class EmailService {
     public void sendLoginFailedAlert(String to) {
         String body = "<h1>Acceso bloqueado</h1>" +
                       "<p>Se han detectado <strong>5 intentos fallidos</strong> de inicio de sesión.</p>" +
-                      "<p>Por seguridad, tu cuenta ha sido suspendida temporalmente por 15 minutos.</p>";
+                      "<p>Por seguridad, tu cuenta ha sido suspendida temporalmente por 10 minutos.</p>";
         send(to, "Alerta de seguridad - " + appName, body);
     }
 

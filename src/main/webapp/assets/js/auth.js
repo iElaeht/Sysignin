@@ -3,9 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 1. CONFIGURACIÓN Y SELECTORES
     // ==========================================
-    const API_PATH = ''; // Ruta relativa para evitar error 404 /auth/auth/
+    const contextPath = window.location.pathname.substring(0, window.location.pathname.indexOf("/", 1));
+    const API_PATH = `${contextPath}/auth/`;
 
     const elements = {
+        // --- LOGIN ---
+        loginForm:         document.getElementById('loginForm'),
+        identifierInput:   document.getElementById('identifier'),
+        loginPassword:     document.getElementById('password'),
         // Formularios y Contenedores
         registerForm:      document.getElementById('registerForm'),
         tokenForm:         document.getElementById('tokenForm'),
@@ -216,16 +221,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const resp = await fetch(`${API_PATH}verify`, { method: 'POST', body: params });
-            const result = await resp.text();
+            const result = await resp.json();
 
-            if (result.includes("SUCCESS")) {
+            if (result.status === "success") {
                 showToast('success', '¡Cuenta activada! Redirigiendo...');
                 setTimeout(() => window.location.href = "../dashboard", 2000);
-            } else if (result.includes("PENALIZADA")) {
-                applyPenalty(1);
-                showToast('error', 'Cuenta bloqueada temporalmente');
+            } else if (result.status === "penalized") {
+                applyPenalty(10);
+                showToast('error', result.message);
             } else {
-                showToast('error', 'Código incorrecto');
+                showToast('error', result.message);
                 elements.tokenInput.value = "";
             }
         } catch (err) {
@@ -238,16 +243,54 @@ document.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams({ email: elements.userEmailHidden.value });
         try {
             const resp = await fetch(`${API_PATH}resend-token`, { method: 'POST', body: params });
-            const result = await resp.text();
+            const result = await resp.json();
             
-            if (result.includes("SUCCESS")) {
+            if (result.status === "success") {
                 showToast('info', 'Nuevo código enviado');
                 startResendCooldown(40);
             } else {
-                showToast('warning', result.replace("ERROR: ", ""));
+                showToast('error', result.message);
             }
         } catch (err) {
             showToast('error', 'No se pudo reenviar el código');
         }
     });
+    // ==========================================
+    // 6. LÓGICA DE LOGIN
+    // ==========================================
+    if (elements.loginForm) {
+        elements.loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const identifier = elements.identifierInput.value.trim();
+            const password = elements.loginPassword.value;
+            try {
+                Swal.fire({
+                    title: 'Verificando credenciales...',
+                    didOpen: () => { Swal.showLoading(); },
+                    allowOutsideClick: false
+                });
+
+                const params = new URLSearchParams();
+                params.append("email", identifier);
+                params.append("password", password);
+
+                const resp = await fetch(`${API_PATH}login`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params 
+                });
+                const result = await resp.json(); 
+
+                if (result.status === "success") {
+                    showToast('success', '¡Bienvenido!');
+                    setTimeout(() => window.location.href = result.redirect, 1500);
+                } else {
+                    Swal.fire("Error", result.message, "error");
+                }
+            } catch (err) {
+                console.error("Error Login:", err);
+                showToast('error', 'No se pudo conectar con el servidor');
+            }
+        });
+    }
 });

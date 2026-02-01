@@ -93,7 +93,7 @@ public class AuthService {
             User updatedUser = userDAO.getUserByEmail(email);
             
             if (updatedUser.getTokenAttempts() >= MAX_ATTEMPTS) {
-                userDAO.applyPenalty(email, 1); // Penalización corta por fallos de token
+                userDAO.applyPenalty(email, 10); // Penalización corta por fallos de token
                 emailService.sendBruteForceAlert(email);
                 return "ERROR: CUENTA_PENALIZADA"; 
             }
