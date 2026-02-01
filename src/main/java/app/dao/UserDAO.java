@@ -113,7 +113,7 @@ public class UserDAO {
     // 3. BÚSQUEDAS Y CONSULTAS
     // ======================================================
 
-    public User getUserByEmail(String identifier) {
+    public User getUserByIdentifier(String identifier) {
         String sql = "SELECT * FROM Users WHERE (Email = ? OR Username = ?) AND IsDeleted = false";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {

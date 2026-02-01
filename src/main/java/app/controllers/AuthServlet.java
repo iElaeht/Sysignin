@@ -87,24 +87,34 @@ public class AuthServlet extends HttpServlet {
 
     private void handleLogin(HttpServletRequest request, HttpServletResponse response, String ip, String userAgent) 
             throws IOException {
-        String identifier = ValidationUtils.normalizeEmail(request.getParameter("identifier")); 
+        // Normalizamos para aceptar email o username
+        String identifier = request.getParameter("identifier"); 
         String password = request.getParameter("password");
 
-        User user = authService.login(identifier, password, ip, userAgent, "Web", "Lima");
+        // Simulamos la obtención de ciudad (luego podrías usar una API de IP)
+        String city = "Sunampe, Ica"; 
+        String deviceType = userAgent.contains("Mobi") ? "Mobile" : "Desktop";
+
+        // Llamada al servicio
+        User user = authService.login(identifier, password, ip, userAgent, deviceType, city);
 
         JSONObject jsonRes = new JSONObject();
         response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
 
         if (user != null) {
             HttpSession session = request.getSession(true);
-            session.setAttribute("user", user);
+            session.setAttribute("user", user); // Objeto completo para el Navbar
             session.setAttribute("idSession", user.getIdUser()); 
             
             jsonRes.put("status", "success");
-            jsonRes.put("message", "Login exitoso");
+            jsonRes.put("message", "¡Bienvenido de nuevo, " + user.getUsername() + "!");
+            // Indicamos al JS que debe ir al Dashboard
+            jsonRes.put("redirect", request.getContextPath() + "/dashboard");
         } else {
+            // Mejoramos el mensaje de error para el usuario
             jsonRes.put("status", "error");
-            jsonRes.put("message", "Credenciales inválidas o cuenta penalizada.");
+            jsonRes.put("message", "Credenciales incorrectas o cuenta aún no activada.");
         }
         response.getWriter().write(jsonRes.toString());
     }
@@ -172,15 +182,35 @@ public class AuthServlet extends HttpServlet {
             throws IOException { 
         String email = request.getParameter("email");
         String token = request.getParameter("token");
+        
+        // 1. Verificamos la cuenta en la DB
         String result = authService.verifyAccount(email, token, ip, userAgent);
 
         JSONObject jsonRes = new JSONObject();
         response.setContentType("application/json");
 
         if ("SUCCESS".equals(result)) {
-            jsonRes.put("status", "success");
-            jsonRes.put("redirect", "dashboard.jsp");
-            jsonRes.put("message", "Cuenta activada correctamente");
+            // --- INICIO DE LA CORRECCIÓN ---
+            
+            // 2. BUSCAMOS AL USUARIO (Para que el Filter lo encuentre en sesión)
+            // Nota: Asegúrate de tener un método en authService para obtener el usuario por email
+            User user = authService.getUserByEmail(email); 
+            
+            if (user != null) {
+                HttpSession session = request.getSession(true);
+                session.setAttribute("user", user); // ¡CLAVE PARA EL FILTER!
+                session.setAttribute("idSession", user.getIdUser());
+                
+                jsonRes.put("status", "success");
+                // 3. REDIRECCIÓN AL SERVLET (Sin el .jsp)
+                jsonRes.put("redirect", request.getContextPath() + "/dashboard");
+                jsonRes.put("message", "Cuenta activada correctamente");
+            } else {
+                jsonRes.put("status", "error");
+                jsonRes.put("message", "Error al recuperar datos de sesión.");
+            }
+            // --- FIN DE LA CORRECCIÓN ---
+            
         } else if (result != null && result.contains("PENALIZADA")) {
             jsonRes.put("status", "penalty"); 
             jsonRes.put("message", "Bloqueado por seguridad. Intenta en unos minutos.");

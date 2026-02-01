@@ -43,7 +43,7 @@ public class AuthService {
     public String registerUser(String username, String email, String password, String ip, String country, String city) {
         if (!ValidationUtils.isValidEmail(email)) return "ERROR: Correo inválido.";
         
-        User existingUser = userDAO.getUserByEmail(email);
+        User existingUser = userDAO.getUserByIdentifier(email);
         if (existingUser != null) {
             if ("Active".equalsIgnoreCase(existingUser.getState())) return "ERROR: El correo ya existe.";
             if (isUserPenalized(existingUser)) return "ERROR: Penalizado. Espera 15 min.";
@@ -78,9 +78,13 @@ public class AuthService {
         }
         return "ERROR: Fallo al guardar.";
     }
+    
+    public User getUserByEmail(String email) {
+        return userDAO.getUserByIdentifier(email);
+    }
 
     public String verifyAccount(String email, String token, String ip, String userAgent) {
-        User user = userDAO.getUserByEmail(email);
+        User user = userDAO.getUserByIdentifier(email);
         if (user == null) return "ERROR: Usuario no encontrado.";
 
         if (isUserPenalized(user)) return "ERROR: CUENTA_PENALIZADA"; 
@@ -90,7 +94,7 @@ public class AuthService {
             return "SUCCESS";
         } else {
             userDAO.incrementTokenAttempts(email);
-            User updatedUser = userDAO.getUserByEmail(email);
+            User updatedUser = userDAO.getUserByIdentifier(email);
             
             if (updatedUser.getTokenAttempts() >= MAX_ATTEMPTS) {
                 userDAO.applyPenalty(email, 10); // Penalización corta por fallos de token
@@ -102,7 +106,7 @@ public class AuthService {
     }
 
     public String resendToken(String email) {
-        User user = userDAO.getUserByEmail(email);
+        User user = userDAO.getUserByIdentifier(email);
         if (user == null) return "ERROR: Usuario no encontrado.";
 
         if (isUserPenalized(user)) return "ERROR: Cuenta penalizada.";
@@ -119,43 +123,44 @@ public class AuthService {
     // 3. ACCESO Y SESIONES (3 métodos)
     // ==========================================
 
-    public User login(String identifier, String password, String ip, String userAgent, String deviceType, String city) {
-        User user = userDAO.getUserByEmail(identifier); 
-        if (user != null && isUserPenalized(user)) return null;
-
-        if (user != null && BCrypt.checkpw(password, user.getPassword())) {
-            if (!"Active".equalsIgnoreCase(user.getState())) return null; 
-
-            // Alerta si la IP ha cambiado desde el registro
+public User login(String identifier, String password, String ip, String userAgent, String deviceType, String city) {
+        User user = userDAO.getUserByIdentifier(identifier); 
+        if (user == null) {
+            auditDAO.insertLog(null, identifier, "LOGIN_FAILED_UNKNOWN", ip, userAgent, "Usuario inexistente");
+            return null;
+        }
+        if (isUserPenalized(user)) {
+            auditDAO.insertLog(user.getIdUser(), user.getEmail(), "LOGIN_ATTEMPT_PENALIZED", ip, userAgent, "Intento durante bloqueo");
+            return null;
+        }
+        if (BCrypt.checkpw(password, user.getPassword())) {
+            if (!"Active".equalsIgnoreCase(user.getState())) {
+                auditDAO.insertLog(user.getIdUser(), user.getEmail(), "LOGIN_FAILED_INACTIVE", ip, userAgent, "Cuenta no activada");
+                return null;
+            }
+            user.setCity(city); 
             if (user.getRegistrationIp() != null && !user.getRegistrationIp().equals(ip)) {
                 emailService.sendNewLoginAlert(user.getEmail(), ip, city, deviceType);
             }
-
             UserSession session = new UserSession();
             session.setUserUuid(user.getUuidUser());
             session.setDeviceInfo(userAgent);
             session.setDeviceType(deviceType);
             session.setIpAddress(ip);
             sessionDAO.createSession(session);
-            
             userDAO.resetAttempts(user.getEmail());
-            userDAO.updateLastIp(user.getUuidUser(), ip); // Actualizamos IP y LastLogin
+            userDAO.updateLastIp(user.getUuidUser(), ip); 
             auditDAO.insertLog(user.getIdUser(), user.getEmail(), "LOGIN_SUCCESS", ip, userAgent, "OK");
             return user;
         } else {
-            if (user != null) {
-                userDAO.incrementLoginAttempts(user.getEmail());
-                int attempts = user.getLoginAttempts() + 1;
-
-                if (attempts >= MAX_ATTEMPTS) {
-                    userDAO.applyPenalty(user.getEmail(), PENALTY_MINUTES);
-                    emailService.sendLoginFailedAlert(user.getEmail());
-                    auditDAO.insertLog(user.getIdUser(), user.getEmail(), "LOGIN_BLOCKED", ip, userAgent, "Bloqueo 15 min");
-                } else {
-                    auditDAO.insertLog(user.getIdUser(), user.getEmail(), "LOGIN_FAILED", ip, userAgent, "Intento: " + attempts);
-                }
+            userDAO.incrementLoginAttempts(user.getEmail());
+            int currentAttempts = user.getLoginAttempts() + 1;
+            if (currentAttempts >= MAX_ATTEMPTS) {
+                userDAO.applyPenalty(user.getEmail(), PENALTY_MINUTES);
+                emailService.sendLoginFailedAlert(user.getEmail());
+                auditDAO.insertLog(user.getIdUser(), user.getEmail(), "LOGIN_BLOCKED", ip, userAgent, "Bloqueo por " + PENALTY_MINUTES + " min");
             } else {
-                auditDAO.insertLog(null, identifier, "LOGIN_FAILED_UNKNOWN", ip, userAgent, "Usuario inexistente");
+                auditDAO.insertLog(user.getIdUser(), user.getEmail(), "LOGIN_FAILED", ip, userAgent, "Intento fallido: " + currentAttempts);
             }
             return null;
         }
@@ -170,7 +175,7 @@ public class AuthService {
     }
 
     public String resetUserAttempts(String email) {
-        User user = userDAO.getUserByEmail(email);
+        User user = userDAO.getUserByIdentifier(email);
         if (user == null) return "ERROR: Usuario no encontrado.";
         
         userDAO.resetAttempts(email);
@@ -183,7 +188,7 @@ public class AuthService {
     // ==========================================
 
     public String recoverPasswordRequest(String email) {
-        User user = userDAO.getUserByEmail(email);
+        User user = userDAO.getUserByIdentifier(email);
         if (user == null) return "SUCCESS"; // Seguridad: No confirmar si el email existe
 
         SecurityToken lastToken = securityTokenDAO.getLastToken(user.getUuidUser(), "PWD_RECOVERY");
@@ -250,7 +255,7 @@ public class AuthService {
 
     public String requestEmailChange(String uuid, String newEmail) {
         if (!ValidationUtils.isValidEmail(newEmail)) return "ERROR: Correo inválido.";
-        if (userDAO.getUserByEmail(newEmail) != null) return "ERROR: El correo ya está en uso.";
+        if (userDAO.getUserByIdentifier(newEmail) != null) return "ERROR: El correo ya está en uso.";
 
         String code = TokenUtils.generateNumericToken();
         SecurityToken st = new SecurityToken();

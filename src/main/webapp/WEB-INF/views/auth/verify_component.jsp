@@ -1,74 +1,68 @@
+<%-- verify_component.jsp --%>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<div id="modalValidation" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-dark bg-opacity-50 backdrop-blur-sm">
-    <div class="container d-flex justify-content-center">
-        <div class="card shadow-lg p-4 border-0" style="max-width: 400px; width: 100%; border-radius: 15px; background: white;">
-            
-            <div class="text-center mb-4">
-                <div class="display-6 text-primary mb-2">
-                    <i class="fa-solid fa-envelope-shield"></i>
-                </div>
-                <h3 class="fw-bold">Verifica tu Identidad</h3>
-                <p class="text-muted small">Hemos enviado un código de 10 caracteres a tu correo. Por favor, ingrésalo debajo.</p>
-            </div>
 
-            <form id="tokenForm">
-                <input type="hidden" id="userEmail">
-
-                <div class="mb-3">
-                    <label for="tokenInput" class="form-label fw-semibold">Código de Verificación</label>
-                    <input type="text" id="tokenInput" maxlength="10" 
-                           class="form-control form-control-lg text-center fw-bold tracking-widest border-2" 
-                           placeholder="0A1B2C3D4E" 
-                           style="letter-spacing: 0.2rem; border-color: #e0e0e0; text-transform: uppercase;"
-                           required>
-                </div>
-
-                <div id="rememberDeviceContainer" class="form-check mb-4 hidden">
-                    <input class="form-check-input" type="checkbox" id="rememberDevice">
-                    <label class="form-check-label small text-muted" for="rememberDevice">
-                        Confío en este dispositivo (No pedir código por 30 días)
-                    </label>
-                </div>
-
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary py-2 fw-bold shadow-sm">
-                        Confirmar y Acceder
-                    </button>
-                    <button type="button" id="resendBtn" class="btn btn-outline-secondary btn-sm border-0">
-                        <i class="fa-solid fa-rotate-right me-1"></i> Reenviar código
-                    </button>
-                </div>
-            </form>
-
-            <div class="text-center mt-3">
-                <button type="button" onclick="location.reload()" class="btn btn-link text-decoration-none text-muted small">
-                    Cancelar proceso
-                </button>
-            </div>
+<div class="card p-4 shadow-lg border-0" style="max-width: 400px; width: 90%; border-radius: 15px">
+    <div class="text-center mb-3">
+        <div id="verifyIconContainer" class="bg-success bg-opacity-10 p-3 rounded-circle d-inline-block mb-2">
+            <i id="verifyIcon" class="fa-solid fa-shield-halved text-success fs-3"></i>
         </div>
+        <h4 id="verifyTitle" class="fw-bold">Verificar Cuenta</h4>
+        <p id="verifyText" class="small text-muted">Ingresa el código enviado a tu correo.</p>
     </div>
+
+    <form id="tokenForm">
+        <input type="hidden" id="authAction" name="authAction" value="register" />
+        <input type="hidden" id="userEmail" name="email" value="" />
+
+        <div class="mb-3">
+            <input
+                type="text"
+                id="tokenInput"
+                class="form-control text-center fw-bold fs-4 py-2"
+                placeholder="XXXXXXXXX"
+                maxlength="9"
+                required
+                autocomplete="off"
+                style="letter-spacing: 5px; border: 2px dashed #dee2e6"
+            />
+        </div>
+        
+        <div id="rememberDeviceContainer" class="mb-3 form-check form-switch text-start d-none">
+            <input class="form-check-input" type="checkbox" id="rememberDevice" name="rememberDevice">
+            <label class="form-check-label small text-muted" for="rememberDevice">
+                Confiar en este dispositivo por 30 días
+            </label>
+        </div>
+
+        <button
+            type="submit"
+            id="btnVerify"
+            class="btn btn-success w-100 fw-bold py-2 shadow-sm mb-3"
+        >
+            Verificar Código
+        </button>
+
+        <div class="text-center mb-2">
+            <button
+                type="button"
+                id="btnCancelModal"
+                class="btn btn-link btn-cancel"
+            >
+                <i class="fa-solid fa-xmark me-1"></i> <span id="cancelBtnText">Cancelar</span>
+            </button>
+        </div>
+
+        <hr class="text-muted opacity-25" />
+
+        <div class="mt-3 text-center">
+            <p class="mb-0 small text-muted">¿No recibiste el código?</p>
+            <button
+                type="button"
+                id="resendBtn"
+                class="btn btn-link btn-sm text-decoration-none fw-bold text-primary"
+            >
+                Reenviar Código
+            </button>
+        </div>
+    </form>
 </div>
-
-<style>
-    /* Clases de utilidad rápidas si no usas Tailwind completo */
-    .hidden { display: none !important; }
-    .fixed { position: fixed; }
-    .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
-    .bg-opacity-50 { background-color: rgba(0, 0, 0, 0.5); }
-    .backdrop-blur-sm { backdrop-filter: blur(4px); }
-    .tracking-widest { letter-spacing: 0.25em; }
-    
-    #modalValidation {
-        animation: fadeInScale 0.3s ease-out;
-    }
-
-    @keyframes fadeInScale {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
-    }
-
-    #tokenInput:focus {
-        border-color: #4e73df;
-        box-shadow: 0 0 0 0.25 source rgba(78, 115, 223, 0.25);
-    }
-</style>

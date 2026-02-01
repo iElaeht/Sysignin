@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 1. CONFIGURACIÓN Y SELECTORES
     // ==========================================
-    const contextPath = window.location.pathname.substring(0, window.location.pathname.indexOf("/", 1));
+    const contextPath = window.location.pathname.substring(0, window.location.pathname.indexOf("/", 1)) || "";
     const API_PATH = `${contextPath}/auth/`;
 
     const elements = {
@@ -11,12 +11,22 @@ document.addEventListener('DOMContentLoaded', () => {
         loginForm:         document.getElementById('loginForm'),
         identifierInput:   document.getElementById('identifier'),
         loginPassword:     document.getElementById('password'),
+        loginContainer:    document.getElementById('loginContainer'),
+
         // Formularios y Contenedores
         registerForm:      document.getElementById('registerForm'),
         tokenForm:         document.getElementById('tokenForm'),
         registerContainer: document.getElementById('registerContainer'),
         modalValidation:   document.getElementById('modalValidation'),
         
+        // --- COMPONENTE VERIFY --- (NUEVOS SELECTORES)
+        authAction:        document.getElementById('authAction'),
+        rememberContainer: document.getElementById('rememberDeviceContainer'), 
+        rememberDevice:    document.getElementById('rememberDevice'),
+        cancelBtnText:     document.getElementById('cancelBtnText'),
+        verifyIconContainer: document.getElementById('verifyIconContainer'),
+        verifyIcon:        document.getElementById('verifyIcon'),
+
         // Inputs y Datos
         emailInput:        document.getElementById('email'),
         userEmailHidden:   document.getElementById('userEmail'),
@@ -37,26 +47,47 @@ document.addEventListener('DOMContentLoaded', () => {
         reqMatch:          document.getElementById('req-match')
     };
 
-    let penaltyInterval;
-    let resendInterval;
+    let penaltyInterval,resendInterval;
+    const ajaxHeaders = { 'X-Requested-With': 'XMLHttpRequest' };
 
     // ==========================================
-    // 2. UTILIDADES VISUALES (TOASTS)
+    // NUEVO: FUNCIÓN DE PREPARACIÓN DE UI
+    // ==========================================
+    const prepareVerifyUI = (mode, email) => {
+        elements.userEmailHidden.value = email;
+        elements.authAction.value = mode;
+        
+        // Aplicar desenfoque al contenedor que corresponda
+        const activeContainer = elements.registerContainer || elements.loginContainer;
+        if (activeContainer) activeContainer.classList.add('pointer-events-none');
+
+        if (mode === 'login') {
+            elements.rememberContainer.classList.remove('d-none');
+            elements.cancelBtnText.innerText = "Regresar al login";
+            elements.btnVerify.className = "btn btn-primary w-100 fw-bold py-2 shadow-sm mb-3";
+            elements.verifyIconContainer.className = "bg-primary bg-opacity-10 p-3 rounded-circle d-inline-block mb-2 text-primary";
+        } else {
+            elements.rememberContainer.classList.add('d-none');
+            elements.cancelBtnText.innerText = "Cancelar registro";
+            elements.btnVerify.className = "btn btn-success w-100 fw-bold py-2 shadow-sm mb-3";
+            elements.verifyIconContainer.className = "bg-success bg-opacity-10 p-3 rounded-circle d-inline-block mb-2 text-success";
+        }
+        
+        elements.modalValidation.style.display = 'flex';
+    };
+
+    // ==========================================
+    // 2. UTILIDADES VISUALES (TOASTS) - Sin cambios
     // ==========================================
     const showToast = (icon, title) => {
         Swal.fire({
-            icon: icon,
-            title: title,
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3500,
-            timerProgressBar: true
+            icon: icon, title: title, toast: true, position: 'top-end',
+            showConfirmButton: false, timer: 3500, timerProgressBar: true
         });
     };
 
     // ==========================================
-    // 3. VALIDACIÓN DE CONTRASEÑA
+    // 3. VALIDACIÓN DE CONTRASEÑA - Sin cambios
     // ==========================================
     const updateRequirement = (el, isValid) => {
         if (!el) return;
@@ -67,23 +98,20 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const validatePasswords = () => {
+        if(!elements.password) return true;
         const pass = elements.password.value;
         const confirm = elements.confirmPassword.value;
-
         const isLongEnough = pass.length >= 8;
         const hasMayus = /[A-Z]/.test(pass);
         const hasNumber = /\d/.test(pass);
         const matches = pass === confirm && pass !== "";
-
         updateRequirement(elements.reqLength, isLongEnough);
         updateRequirement(elements.reqMayus, hasMayus);
         updateRequirement(elements.reqNumber, hasNumber);
         updateRequirement(elements.reqMatch, matches);
-
         return isLongEnough && hasMayus && hasNumber && matches;
     };
 
-    // Listeners para validación en tiempo real
     if (elements.password && elements.confirmPassword) {
         ['input', 'blur'].forEach(evt => {
             elements.password.addEventListener(evt, validatePasswords);
@@ -92,33 +120,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 4. LÓGICA DEL MODAL (VERIFICACIÓN)
+    // 4. LÓGICA DEL MODAL (VERIFICACIÓN) - MODIFICADO
     // ==========================================
-    
-    // Botón Cancelar: Cierra el modal y limpia el efecto blur
     if (elements.btnCancelModal) {
         elements.btnCancelModal.addEventListener('click', () => {
             if (penaltyInterval) clearInterval(penaltyInterval);
             if (resendInterval) clearInterval(resendInterval);
             
             elements.modalValidation.style.display = 'none';
-            elements.registerContainer.classList.remove('pointer-events-none');
-            elements.btnVerify.classList.remove('btn-secondary');
-            elements.btnVerify.classList.add('btn-success');
-            elements.btnVerify.innerHTML = "Verificar Código";
+            const activeContainer = elements.registerContainer || elements.loginContainer;
+            if (activeContainer) activeContainer.classList.remove('pointer-events-none');
             
             elements.tokenInput.disabled = false;
             elements.tokenInput.value = "";
-            elements.tokenInput.placeholder = "XXXXXX";
         });
     }
 
-    // Timer para el botón de Reenviar
+    // startResendCooldown, applyPenalty y resetServerAttempts se mantienen igual...
     const startResendCooldown = (seconds) => {
         let timeLeft = seconds;
         elements.resendBtn.style.pointerEvents = 'none';
         elements.resendBtn.style.opacity = '0.5';
-
         if (resendInterval) clearInterval(resendInterval);
         resendInterval = setInterval(() => {
             elements.resendBtn.innerText = `Reenviar en ${timeLeft}s`;
@@ -131,132 +153,136 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     };
 
-    // Bloqueo por demasiados intentos
     const applyPenalty = (minutes) => {
         let secondsLeft = minutes * 60;
         if (penaltyInterval) clearInterval(penaltyInterval);
-
         const updateUI = () => {
             const m = Math.floor(secondsLeft / 60);
             const s = secondsLeft % 60;
             const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
-
             elements.tokenInput.disabled = true;
             elements.tokenInput.placeholder = `BLOQUEADO (${timeStr})`;
             elements.btnVerify.disabled = true;
             elements.btnVerify.innerHTML = `<i class="fa-solid fa-clock me-2"></i> ${timeStr}`;
-
             if (secondsLeft-- <= 0) {
                 clearInterval(penaltyInterval);
                 resetServerAttempts(); 
                 elements.tokenInput.disabled = false;
                 elements.tokenInput.placeholder = "XXXXXX";
                 elements.btnVerify.disabled = false;
-                elements.btnVerify.classList.replace('btn-secondary', 'btn-success');
                 elements.btnVerify.innerHTML = "Verificar Código";
-                
                 showToast('info', 'Ya puedes intentar de nuevo');
             }
         };
         updateUI();
         penaltyInterval = setInterval(updateUI, 1000);
     };
+
     const resetServerAttempts = async () => {
         try {
             await fetch(`${API_PATH}reset-attempts`, { 
                 method: 'POST', 
                 body: new URLSearchParams({ email: elements.userEmailHidden.value }) 
             });
-        } catch (err) {
-            console.error("Error al resetear intentos en servidor:", err);
-        }
+        } catch (err) { console.error(err); }
     };
 
     // ==========================================
-    // 5. PETICIONES AL SERVIDOR (FETCH)
+    // 5. PETICIONES AL SERVIDOR (MODIFICADO)
     // ==========================================
 
     // Registro de Usuario
-    elements.registerForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!validatePasswords()) {
-            showToast('warning', 'Revisa los requisitos de seguridad');
-            return;
-        }
-
-        const formData = new URLSearchParams(new FormData(elements.registerForm));
-        try {
-            elements.btnRegister.disabled = true;
-            elements.btnRegister.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
-            const resp = await fetch(`${API_PATH}register`, { method: 'POST', body: formData });
-            const result = await resp.json();
-
-            if (result.status === "success") {
-                // Preparar modal de verificación
-                elements.userEmailHidden.value = elements.emailInput.value;
-                elements.modalValidation.style.display = 'flex';
-                elements.registerContainer.classList.add('pointer-events-none');
-                
-                showToast('success', '¡Registro exitoso! Revisa tu correo');
-                startResendCooldown(30);
-            } else {
-                showToast('error', result.replace("ERROR: ", ""));
+    if (elements.registerForm) {
+        elements.registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!validatePasswords()) {
+                showToast('warning', 'Revisa los requisitos de seguridad');
+                return;
             }
-        } catch (err) {
-            showToast('error', 'Error de conexión con el servidor');
-        } finally {
-            elements.btnRegister.disabled = false;
-            elements.btnRegister.innerText = 'Registrar Cuenta';
-        }
-    });
+            const formData = new URLSearchParams(new FormData(elements.registerForm));
+            try {
+                elements.btnRegister.disabled = true;
+                elements.btnRegister.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                const resp = await fetch(`${API_PATH}register`, { 
+                    method: 'POST', 
+                    body: formData,
+                    headers: ajaxHeaders
+                });
+                const result = await resp.json();
+                if (result.status === "success") {
+                    prepareVerifyUI('register', elements.emailInput.value); // NUEVO
+                    showToast('success', '¡Registro exitoso! Revisa tu correo');
+                    startResendCooldown(30);
+                } else {
+                    showToast('error', result.message || "Error al registrar");
+                }
+            } catch (err) { showToast('error', 'Error de conexión'); }
+            finally { 
+                elements.btnRegister.disabled = false; 
+                elements.btnRegister.innerText = 'Registrar Cuenta'; 
+            }
+        });
+    }
 
-    // Verificación de Token
-    elements.tokenForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const params = new URLSearchParams({
-            email: elements.userEmailHidden.value,
-            token: elements.tokenInput.value.trim()
+    // Verificación de Token (MODIFICADO para soportar Login/Register)
+        elements.tokenForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const action = elements.authAction.value;
+            const params = new URLSearchParams();
+            params.append('email', elements.userEmailHidden.value);
+            params.append('token', elements.tokenInput.value.trim());
+            params.append('remember', elements.rememberDevice.checked);
+            try {
+                const resp = await fetch(`${API_PATH}verify`, { 
+                    method: 'POST', 
+                    body: params,
+                    headers: ajaxHeaders
+                });
+                
+                const result = await resp.json();
+
+                if (result.status === "success") {
+                    showToast('success', '¡Confirmado! Redirigiendo...');
+                    
+                    // Priorizamos el redirect que viene del servidor, si no, usamos el path manual
+                    const destination = result.redirect || `${contextPath}/dashboard`;
+                    
+                    console.log("Acción:", action);
+                    console.log("Destino final:", destination);
+
+                    setTimeout(() => {
+                        window.location.href = destination;
+                    }, 2000);
+                } else if (result.status === "penalty") {
+                    applyPenalty(10);
+                    showToast('error', result.message);
+                } else {
+                    showToast('error', result.message);
+                }
+            } catch (err) { 
+                console.error("Error en fetch:", err);
+                showToast('error', 'Error de comunicación con el servidor'); 
+            }
         });
 
-        try {
-            const resp = await fetch(`${API_PATH}verify`, { method: 'POST', body: params });
-            const result = await resp.json();
-
-            if (result.status === "success") {
-                showToast('success', '¡Cuenta activada! Redirigiendo...');
-                setTimeout(() => window.location.href = "../dashboard", 2000);
-            } else if (result.status === "penalty") {
-                applyPenalty(10); // Activa el contador de 10 minutos en la UI
-                showToast('error', result.message);
-            } else {
-                showToast('error', result.message);
-                elements.tokenInput.value = "";
-            }
-        } catch (err) {
-            showToast('error', 'Error al verificar código');
-        }
-    });
-
-    // Reenvío de Token
     elements.resendBtn.addEventListener('click', async () => {
         const params = new URLSearchParams({ email: elements.userEmailHidden.value });
         try {
-            const resp = await fetch(`${API_PATH}resend-token`, { method: 'POST', body: params });
+            const resp = await fetch(`${API_PATH}resend-token`, { 
+                method: 'POST', 
+                body: params,
+                headers: ajaxHeaders
+            });
             const result = await resp.json();
-            
             if (result.status === "success") {
                 showToast('info', 'Nuevo código enviado');
                 startResendCooldown(40);
-            } else {
-                showToast('error', result.message);
             }
-        } catch (err) {
-            showToast('error', 'No se pudo reenviar el código');
-        }
+        } catch (err) { showToast('error', 'Error al reenviar'); }
     });
+
     // ==========================================
-    // 6. LÓGICA DE LOGIN
+    // 6. LÓGICA DE LOGIN (MODIFICADO)
     // ==========================================
     if (elements.loginForm) {
         elements.loginForm.addEventListener('submit', async (e) => {
@@ -265,32 +291,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = elements.loginPassword.value;
             try {
                 Swal.fire({
-                    title: 'Verificando credenciales...',
-                    didOpen: () => { Swal.showLoading(); },
-                    allowOutsideClick: false
+                    title: 'Verificando...', didOpen: () => { Swal.showLoading(); }, allowOutsideClick: false
                 });
 
                 const params = new URLSearchParams();
                 params.append("identifier", identifier);
                 params.append("password", password);
-
                 const resp = await fetch(`${API_PATH}login`, { 
                     method: 'POST', 
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params 
+                    body: params,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
                 });
                 const result = await resp.json(); 
-
                 if (result.status === "success") {
-                    showToast('success', '¡Bienvenido!');
-                    setTimeout(() => window.location.href = result.redirect, 1500);
+                    Swal.close();
+                    showToast('success', result.message);
+                    
+                    // En lugar de abrir el modal, redirigimos directamente
+                    setTimeout(() => {
+                        window.location.href = result.redirect; 
+                    }, 1500);
+                } else if (result.status === "needs_verification") { 
+                    // OPCIONAL: Por si en el futuro quieres forzar 2FA
+                    Swal.close();
+                    prepareVerifyUI('login', result.email || identifier); 
+                    showToast('info', 'Se requiere verificación adicional');
+                    startResendCooldown(30);
                 } else {
                     Swal.fire("Error", result.message, "error");
                 }
-            } catch (err) {
-                console.error("Error Login:", err);
-                showToast('error', 'No se pudo conectar con el servidor');
-            }
+            } catch (err) { showToast('error', 'Error de conexión'); }
         });
     }
 });
