@@ -8,7 +8,7 @@ import java.util.Properties;
 /**
  * SERVICIO: EmailService
  * Descripción: Gestión de envíos de correo con plantillas HTML minimalistas.
- * Optimizaciones: Multihilo nativo y corrección de detección de idioma.
+ * Actualización: Diseño centrado y tokens en negrita para máxima visibilidad.
  */
 public class EmailService {
 
@@ -39,14 +39,12 @@ public class EmailService {
             }
         });
 
-        // Enviar en un hilo separado para no bloquear la aplicación
         new Thread(() -> {
             try {
                 MimeMessage message = new MimeMessage(session);
                 message.setFrom(new InternetAddress(emailUser, appName));
                 message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
                 
-                // Forzamos el charset a UTF-8 para evitar problemas de tildes
                 message.setSubject(subject, "UTF-8");
                 message.setContent(wrapInTemplate(htmlBody), "text/html; charset=UTF-8");
                 
@@ -58,7 +56,7 @@ public class EmailService {
     }
 
     // ==========================================
-    // 2. TOKENS DE VALIDACIÓN (4 métodos)
+    // 2. TOKENS DE VALIDACIÓN
     // ==========================================
 
     public void sendActivationToken(String to, String token) {
@@ -92,7 +90,7 @@ public class EmailService {
     }
 
     // ==========================================
-    // 3. ALERTAS DE SEGURIDAD (4 métodos)
+    // 3. ALERTAS DE SEGURIDAD
     // ==========================================
 
     public void sendLoginFailedAlert(String to) {
@@ -112,7 +110,7 @@ public class EmailService {
     public void sendNewLoginAlert(String to, String ip, String city, String device) {
         String body = "<h1>Nuevo inicio de sesión</h1>" +
                       "<p>Se ha accedido a tu cuenta desde una nueva ubicación:</p>" +
-                      "<div style='background:#f1f1f1; padding:15px; border-radius:5px;'>" +
+                      "<div style='background:#f9f9f9; padding:15px; border-radius:10px; border:1px solid #eee; display:inline-block; text-align:left;'>" +
                       "• <strong>IP:</strong> " + ip + "<br>" +
                       "• <strong>Ciudad:</strong> " + city + "<br>" +
                       "• <strong>Dispositivo:</strong> " + device + "</div>";
@@ -127,7 +125,7 @@ public class EmailService {
     }
 
     // ==========================================
-    // 4. NOTIFICACIONES DE ÉXITO (3 métodos)
+    // 4. NOTIFICACIONES DE ÉXITO
     // ==========================================
 
     public void sendPrimaryEmailChangedAlert(String oldEmail) {
@@ -150,21 +148,36 @@ public class EmailService {
     }
 
     // ==========================================
-    // 5. DISEÑO (Template Minimalista)
+    // 5. DISEÑO (Template Centrado y Resaltado)
     // ==========================================
 
     private String wrapInTemplate(String content) {
         return "<!DOCTYPE html><html lang='es'>" +
                "<head><meta charset='UTF-8'></head>" +
-               "<body style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif; background-color:#ffffff; color:#333; margin:0; padding:40px;'>" +
+               "<body style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif; background-color:#ffffff; color:#333; margin:0; padding:40px; text-align:center;'>" +
                "<div style='max-width:450px; margin:0 auto; line-height:1.6;'>" +
-               "<div style='margin-bottom:40px; text-align:left; font-weight:bold; font-size:18px; color:#000;'>" + appName + "</div>" +
+               "<div style='margin-bottom:40px; font-weight:bold; font-size:18px; color:#000;'>" + appName + "</div>" +
                "<div style='font-size:15px;'>" + content + "</div>" +
-               "<div style='margin-top:50px; padding-top:20px; border-top:1px solid #eee; font-size:12px; color:#999;'>" +
+               "<div style='margin-top:50px; padding-top:20px; border-top:1px solid #eee; font-size:12px; color:#999; text-align:center;'>" +
                "Este es un mensaje automático generado por nuestro sistema de seguridad. Por favor, no respondas a este correo." +
                "</div></div>" +
                "<style>" +
-               ".token { background:#f4f4f7; padding:20px; text-align:center; font-size:32px; font-weight:bold; letter-spacing:5px; border-radius:10px; margin:20px 0; color:#2d3748; }" +
+               ".token { " +
+               "  background:#f4f4f7; " +
+               "  padding:20px; " +
+               "  text-align:center; " +
+               "  font-size:32px; " +
+               "  font-weight:800; " + // Negrita resaltada
+               "  letter-spacing:6px; " +
+               "  border-radius:12px; " +
+               "  margin:25px auto; " +
+               "  color:#2d3748; " +
+               "  width: fit-content; " +
+               "  padding-left: 40px; " +
+               "  padding-right: 40px; " +
+               "  border: 1px solid #e2e8f0;" +
+               "}" +
+               "h1 { font-size:22px; margin-bottom:20px; color:#1a202c; }" +
                "</style></body></html>";
     }
 }
