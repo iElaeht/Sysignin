@@ -34,9 +34,10 @@ CREATE TABLE Users (
     State ENUM('Active', 'Inactive', 'Ban', 'Suspicious') NOT NULL DEFAULT 'Inactive',
     
     -- Tokens y Tiempos
-    Token VARCHAR(9) DEFAULT NULL,
+    Token VARCHAR(20) DEFAULT NULL,
     TokenExpiration DATETIME DEFAULT NULL,
     TokenAttempts INT DEFAULT 0,
+    LoginAttempts INT DEFAULT 0,
     DateRegistration DATETIME DEFAULT CURRENT_TIMESTAMP,
     LastLogin DATETIME DEFAULT NULL,
     PenaltyTime DATETIME DEFAULT NULL,
@@ -85,12 +86,18 @@ CREATE TABLE AuditLogs (
 
 CREATE TABLE SecurityTokens (
     IdToken INT PRIMARY KEY AUTO_INCREMENT,
-    UserUuid VARCHAR(255) NOT NULL,
-    TokenType ENUM('EMAIL_CHANGE', 'PWD_CHANGE', 'RECOVERY_UPDATE') NOT NULL,
-    TokenCode VARCHAR(10) NOT NULL,
+    UserUuid VARCHAR(36) NOT NULL,
+    TokenType ENUM('EMAIL_CHANGE', 'PWD_CHANGE', 'PWD_RECOVERY', 'RECOVERY_UPDATE') NOT NULL,
+    TokenCode VARCHAR(20) NOT NULL,
     NewValue VARCHAR(255),
-    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ExpiresAt TIMESTAMP NOT NULL,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ExpiresAt DATETIME NOT NULL,
     IsUsed BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (UserUuid) REFERENCES Users(UuidUser)
+    CONSTRAINT fk_security_user FOREIGN KEY (UserUuid) REFERENCES Users(UuidUser) ON DELETE CASCADE
 );
+
+SELECT * FROM AuditLogs;
+SELECT * FROM SecurityTokens;
+SELECT * FROM Notifications;
+SELECT * FROM UserSessions;
+SELECT * FROM Users;
