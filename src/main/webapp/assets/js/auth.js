@@ -190,9 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.btnRegister.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
             const resp = await fetch(`${API_PATH}register`, { method: 'POST', body: formData });
-            const result = await resp.text();
+            const result = await resp.json();
 
-            if (result.includes("SUCCESS")) {
+            if (result.status === "success") {
                 // Preparar modal de verificación
                 elements.userEmailHidden.value = elements.emailInput.value;
                 elements.modalValidation.style.display = 'flex';
@@ -226,8 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.status === "success") {
                 showToast('success', '¡Cuenta activada! Redirigiendo...');
                 setTimeout(() => window.location.href = "../dashboard", 2000);
-            } else if (result.status === "penalized") {
-                applyPenalty(10);
+            } else if (result.status === "penalty") {
+                applyPenalty(10); // Activa el contador de 10 minutos en la UI
                 showToast('error', result.message);
             } else {
                 showToast('error', result.message);
@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const params = new URLSearchParams();
-                params.append("email", identifier);
+                params.append("identifier", identifier);
                 params.append("password", password);
 
                 const resp = await fetch(`${API_PATH}login`, { 

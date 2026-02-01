@@ -55,7 +55,7 @@ public class UserDAO {
     }
 
     public boolean updateToken(String email, String token) {
-        String sql = "UPDATE Users SET Token = ?, TokenExpiration = DATE_ADD(NOW(), INTERVAL 1 MINUTE), TokenAttempts = 0 " + 
+        String sql = "UPDATE Users SET Token = ?, TokenExpiration = DATE_ADD(NOW(), INTERVAL 10 MINUTE), TokenAttempts = 0 " + 
                      "WHERE Email = ? AND (PenaltyTime IS NULL OR PenaltyTime < NOW()) AND IsDeleted = false";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -94,7 +94,7 @@ public class UserDAO {
         String sql = "UPDATE Users SET PenaltyTime = DATE_ADD(NOW(), INTERVAL ? MINUTE), TokenAttempts = 5 WHERE Email = ?";
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(10, minutes);
+            ps.setInt(1, minutes);
             ps.setString(2, email);
             ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); }
