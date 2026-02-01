@@ -25,7 +25,7 @@ public class AuthService {
     // Constantes de Configuración
     private static final int MAX_ATTEMPTS = 5;
     private static final int PENALTY_MINUTES = 15;
-    private static final int COOLDOWN_SECONDS = 30;
+    private static final int COOLDOWN_SECONDS = 40;
 
     // ==========================================
     // 1. MÉTODOS DE APOYO E INTERNOS (1 método)

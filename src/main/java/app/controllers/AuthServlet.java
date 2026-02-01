@@ -9,6 +9,8 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 
+import org.json.JSONObject;
+
 @WebServlet("/auth/*")
 public class AuthServlet extends HttpServlet {
 
@@ -85,21 +87,26 @@ public class AuthServlet extends HttpServlet {
 
     private void handleLogin(HttpServletRequest request, HttpServletResponse response, String ip, String userAgent) 
             throws IOException {
-        // Normalizamos el identificador por si es un correo con espacios accidentales
         String identifier = ValidationUtils.normalizeEmail(request.getParameter("identifier")); 
         String password = request.getParameter("password");
 
         User user = authService.login(identifier, password, ip, userAgent, "Web", "Lima");
 
+        JSONObject jsonRes = new JSONObject();
+        response.setContentType("application/json");
+
         if (user != null) {
             HttpSession session = request.getSession(true);
             session.setAttribute("user", user);
             session.setAttribute("idSession", user.getIdUser()); 
-            response.getWriter().write("SUCCESS");
+            
+            jsonRes.put("status", "success");
+            jsonRes.put("message", "Login exitoso");
         } else {
-            response.setStatus(401);
-            response.getWriter().write("ERROR: Credenciales inválidas o cuenta penalizada.");
+            jsonRes.put("status", "error");
+            jsonRes.put("message", "Credenciales inválidas o cuenta penalizada.");
         }
+        response.getWriter().write(jsonRes.toString());
     }
 
     private void handleLogout(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -130,48 +137,101 @@ public class AuthServlet extends HttpServlet {
         String cleanEmail = ValidationUtils.normalizeEmail(rawEmail);
         String cleanUser = (rawUser != null) ? rawUser.trim().replaceAll("\\s+", "") : "";
 
-        // 2. Validar Seguridad (Protección contra Inyección/Scripts)
+        JSONObject jsonRes = new JSONObject(); // Creamos el JSON aquí
+        response.setContentType("application/json");
+
+        // 2. Validaciones de Seguridad
         if (!ValidationUtils.isSafeText(cleanUser)) {
-            processResult(response, "ERROR: El nombre de usuario contiene caracteres prohibidos.");
+            jsonRes.put("status", "error");
+            jsonRes.put("message", "Nombre de usuario con caracteres prohibidos.");
+            response.getWriter().write(jsonRes.toString());
             return;
         }
 
         if (!ValidationUtils.isValidEmail(cleanEmail)) {
-            processResult(response, "ERROR: El formato del correo es inválido.");
+            jsonRes.put("status", "error");
+            jsonRes.put("message", "Formato de correo inválido.");
+            response.getWriter().write(jsonRes.toString());
             return;
         }
 
-        // 3. Enviar al Servicio con datos limpios
+        // 3. Llamada al Servicio (Cuidado con los parámetros: agregué "Peru" y "Lima" como pide tu Service)
         String result = authService.registerUser(cleanUser, cleanEmail, password, ip, "Peru", "Lima");
-        processResult(response, result);
-    }
 
-    private void handleVerify(HttpServletRequest request, HttpServletResponse response, String ip, String userAgent) 
-            throws IOException {
+        if ("SUCCESS".equals(result)) {
+            jsonRes.put("status", "success");
+            jsonRes.put("message", "Registro exitoso. Revisa tu correo.");
+        } else {
+            jsonRes.put("status", "error");
+            jsonRes.put("message", result);
+        }
         
-        String cleanEmail = ValidationUtils.normalizeEmail(request.getParameter("email"));
-        String cleanToken = ValidationUtils.normalizeToken(request.getParameter("token"));
+        response.getWriter().write(jsonRes.toString());
+    }
+    private void handleVerify(HttpServletRequest request, HttpServletResponse response, String ip, String userAgent) 
+            throws IOException { 
+        String email = request.getParameter("email");
+        String token = request.getParameter("token");
+        String result = authService.verifyAccount(email, token, ip, userAgent);
 
-        String result = authService.verifyAccount(cleanEmail, cleanToken, ip, userAgent);
-        processResult(response, result);
+        JSONObject jsonRes = new JSONObject();
+        response.setContentType("application/json");
+
+        if ("SUCCESS".equals(result)) {
+            jsonRes.put("status", "success");
+            jsonRes.put("redirect", "dashboard.jsp");
+            jsonRes.put("message", "Cuenta activada correctamente");
+        } else if (result != null && result.contains("PENALIZADA")) {
+            jsonRes.put("status", "penalty"); 
+            jsonRes.put("message", "Bloqueado por seguridad. Intenta en unos minutos.");
+        } else {
+            jsonRes.put("status", "error");
+            jsonRes.put("message", result != null ? result : "Código inválido");
+        }
+        
+        response.getWriter().write(jsonRes.toString());
     }
 
     private void handleResendToken(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String cleanEmail = ValidationUtils.normalizeEmail(request.getParameter("email"));
-        
+        JSONObject jsonRes = new JSONObject();
+        response.setContentType("application/json");
+
         if (cleanEmail == null || cleanEmail.isEmpty()) {
-            processResult(response, "ERROR: Email requerido.");
-            return;
+            jsonRes.put("status", "error");
+            jsonRes.put("message", "Email requerido.");
+        } else {
+            String result = authService.resendToken(cleanEmail);
+            if ("SUCCESS".equals(result)) {
+                jsonRes.put("status", "success");
+                jsonRes.put("message", "Nuevo código enviado.");
+            } else {
+                jsonRes.put("status", "error");
+                jsonRes.put("message", result);
+            }
         }
-        String result = authService.resendToken(cleanEmail);
-        processResult(response, result);
+        response.getWriter().write(jsonRes.toString());
     }
 
     private void handleResetAttempts(HttpServletRequest request, HttpServletResponse response) 
             throws IOException {
         String cleanEmail = ValidationUtils.normalizeEmail(request.getParameter("email"));
+        
+        // Llamada al servicio
         String result = authService.resetUserAttempts(cleanEmail); 
-        processResult(response, result);
+
+        JSONObject jsonRes = new JSONObject();
+        response.setContentType("application/json");
+
+        if ("SUCCESS".equals(result)) {
+            jsonRes.put("status", "success");
+            jsonRes.put("message", "Intentos reiniciados correctamente.");
+        } else {
+            jsonRes.put("status", "error");
+            jsonRes.put("message", result);
+        }
+        
+        response.getWriter().write(jsonRes.toString());
     }
 
     // ==========================================
@@ -182,33 +242,42 @@ public class AuthServlet extends HttpServlet {
             throws IOException {
         String uuid = request.getParameter("uuid");
         String currentPass = request.getParameter("currentPassword");
+        
         String result = authService.requestPasswordChange(uuid, currentPass);
-        processResult(response, result);
+        
+        JSONObject jsonRes = new JSONObject();
+        response.setContentType("application/json");
+
+        if ("SUCCESS".equals(result)) {
+            jsonRes.put("status", "success");
+            jsonRes.put("message", "Código de verificación enviado a tu correo.");
+        } else {
+            jsonRes.put("status", "error");
+            jsonRes.put("message", result);
+        }
+        response.getWriter().write(jsonRes.toString());
     }
 
     private void handleConfirmPasswordChange(HttpServletRequest request, HttpServletResponse response, String ip, String userAgent) 
             throws IOException {
+        
         String result = authService.confirmPasswordChange(
             request.getParameter("uuid"),
             request.getParameter("code"),
             request.getParameter("newPassword"),
             ip, userAgent
         );
-        processResult(response, result);
-    }
 
-    // ==========================================
-    // 5. UTILIDADES DE RESPUESTA
-    // ==========================================
+        JSONObject jsonRes = new JSONObject();
+        response.setContentType("application/json");
 
-    private void processResult(HttpServletResponse response, String result) throws IOException {
-        response.setContentType("text/plain");
-        response.setCharacterEncoding("UTF-8");
-        if (result != null && result.contains("SUCCESS")) {
-            response.setStatus(200);
+        if ("SUCCESS".equals(result)) {
+            jsonRes.put("status", "success");
+            jsonRes.put("message", "Contraseña actualizada correctamente.");
         } else {
-            response.setStatus(400);
+            jsonRes.put("status", "error");
+            jsonRes.put("message", result);
         }
-        response.getWriter().write(result);
+        response.getWriter().write(jsonRes.toString());
     }
 }
