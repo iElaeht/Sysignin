@@ -18,19 +18,18 @@ public class AdminServlet extends HttpServlet {
     private UserDAO userDAO = new UserDAO();
     private AuditDAO auditDAO = new AuditDAO();
 
+    // ======================================================
+    // 1. MÉTODOS DE CICLO DE VIDA Y CONTROL DE ACCESO
+    // ======================================================
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
+        // Control de Seguridad: Verificación de Rol Administrativo
+        if (!isAdmin(request, response)) return;
+
         String pathInfo = request.getPathInfo();
-        User currentUser = (User) request.getSession().getAttribute("user");
-
-        // VALIDACIÓN DE ROL: El AuthFilter deja entrar, pero aquí restringimos por Rol
-        if (currentUser == null || !"Admin".equalsIgnoreCase(currentUser.getRoles())) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Acceso denegado: Se requieren permisos de administrador.");
-            return;
-        }
-
         String action = (pathInfo != null) ? pathInfo : "";
 
         switch (action) {
@@ -53,57 +52,79 @@ public class AdminServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
+        // Control de Seguridad: Verificación de Rol Administrativo
+        if (!isAdmin(request, response)) return;
+
         String pathInfo = request.getPathInfo();
-        User currentUser = (User) request.getSession().getAttribute("user");
 
-        // Verificación de seguridad también en POST
-        if (currentUser == null || !"Admin".equalsIgnoreCase(currentUser.getRoles())) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN);
-            return;
-        }
-
-        if ("/update-status".equals(pathInfo)) {
-            handleUpdateUserStatus(request, response);
-        } else {
-            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+        switch (pathInfo != null ? pathInfo : "") {
+            case "/update-status":
+                handleUpdateUserStatus(request, response);
+                break;
+            default:
+                response.sendError(HttpServletResponse.SC_NOT_FOUND);
+                break;
         }
     }
+
+    /**
+     * Valida si el usuario en sesión tiene privilegios de Administrador.
+     */
+    private boolean isAdmin(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        User currentUser = (User) request.getSession().getAttribute("user");
+        if (currentUser == null || !"Admin".equalsIgnoreCase(currentUser.getRoles())) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Acceso denegado: Se requieren permisos de administrador.");
+            return false;
+        }
+        return true;
+    }
+
+    // ======================================================
+    // 2. GESTIÓN DE VISTAS (DASHBOARD Y NAVEGACIÓN)
+    // ======================================================
 
     private void handleAdminDashboard(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        // Aquí podrías cargar contadores rápidos si fuera necesario
+        // Espacio para cargar estadísticas rápidas (ej. total usuarios, logs hoy)
         request.getRequestDispatcher("/admin-dashboard.jsp").forward(request, response);
     }
 
+    // ======================================================
+    // 3. GESTIÓN DE USUARIOS
+    // ======================================================
+
     private void handleListAllUsers(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        // Obtenemos la lista de todos los usuarios registrados
+        // Recuperar la lista completa desde la persistencia
         List<User> users = userDAO.getAllUsers(); 
         request.setAttribute("userList", users);
         request.getRequestDispatcher("/admin-users.jsp").forward(request, response);
     }
 
-    private void handleGlobalAudit(HttpServletRequest request, HttpServletResponse response) 
-            throws ServletException, IOException {
-        // Llamada al método corregido en AuditDAO
-        List<AuditLog> logs = auditDAO.getGlobalLogs(); 
-        request.setAttribute("globalLogs", logs);
-        request.getRequestDispatcher("/admin-audit.jsp").forward(request, response);
-    }
-
     private void handleUpdateUserStatus(HttpServletRequest request, HttpServletResponse response) 
             throws IOException {
         String uuid = request.getParameter("uuid");
-        String newStatus = request.getParameter("status"); // Ejemplo: 'Banned', 'Active'
+        String newStatus = request.getParameter("status");
 
         if (uuid != null && newStatus != null) {
-            if (userDAO.updateStatus(uuid, newStatus)) {
+            // Sincronizado con UserDAO.changeState
+            if (userDAO.changeState(uuid, newStatus)) {
                 response.getWriter().write("SUCCESS: Estado actualizado.");
             } else {
                 response.getWriter().write("ERROR: No se pudo actualizar el estado.");
             }
-        } else {
-            response.getWriter().write("ERROR: Datos incompletos.");
         }
+    }
+
+    // ======================================================
+    // 4. MONITOREO Y AUDITORÍA
+    // ======================================================
+
+    private void handleGlobalAudit(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        // Obtener historial de acciones de todo el sistema
+        List<AuditLog> logs = auditDAO.getGlobalLogs(); 
+        request.setAttribute("globalLogs", logs);
+        request.getRequestDispatcher("/admin-audit.jsp").forward(request, response);
     }
 }

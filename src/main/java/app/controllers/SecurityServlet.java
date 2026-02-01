@@ -47,33 +47,65 @@ public class SecurityServlet extends HttpServlet {
         String pathInfo = request.getPathInfo();
         User currentUser = (User) request.getSession().getAttribute("user");
 
-        if ("/terminate-session".equals(pathInfo)) {
-            handleTerminateSession(request, response, currentUser);
+        switch (pathInfo != null ? pathInfo : "") {
+            case "/terminate-session":
+                handleTerminateSession(request, response, currentUser);
+                break;
+            case "/terminate-others": // NUEVA: Para cerrar todo lo demás
+                handleTerminateOtherSessions(request, response, currentUser);
+                break;
+            default:
+                response.sendError(HttpServletResponse.SC_NOT_FOUND);
+                break;
         }
     }
-
     private void handleListSessions(HttpServletRequest request, HttpServletResponse response, User user) 
             throws ServletException, IOException {
         
-        // Obtenemos todas las sesiones activas del usuario
+        // 1. Pedimos al DAO las sesiones que están IsActive = true
         List<UserSession> sessions = sessionDAO.getActiveSessions(user.getUuidUser());
         
-        // Pasamos la lista al JSP de seguridad
+        // 2. Pasamos la lista al request para que el JSP pueda iterarla
         request.setAttribute("activeSessions", sessions);
+        
+        // 3. Enviamos al usuario a la vista de seguridad
         request.getRequestDispatcher("/security-center.jsp").forward(request, response);
     }
 
     private void handleTerminateSession(HttpServletRequest request, HttpServletResponse response, User user) 
             throws IOException {
         
-        int idSession = Integer.parseInt(request.getParameter("idSession"));
-        
-        // Intentamos terminar la sesión (el DAO valida que pertenezca al usuario)
+        String idParam = request.getParameter("idSession");
+        if (idParam == null) {
+            response.getWriter().write("ERROR: ID de sesión ausente.");
+            return;
+        }
+
+        int idSession = Integer.parseInt(idParam);
+        // Obtenemos el ID de la sesión actual guardado en el login
+        Integer currentSessionId = (Integer) request.getSession().getAttribute("idSession");
+
+        if (currentSessionId != null && currentSessionId == idSession) {
+            response.getWriter().write("ERROR: No puedes cerrar tu sesión actual desde aquí. Usa Logout.");
+            return;
+        }
+
         if (sessionDAO.terminateSession(idSession, user.getUuidUser())) {
-            response.getWriter().write("SUCCESS: Sesión finalizada.");
+            response.getWriter().write("SUCCESS");
         } else {
             response.getWriter().write("ERROR: No se pudo cerrar la sesión.");
         }
+    }
+    private void handleTerminateOtherSessions(HttpServletRequest request, HttpServletResponse response, User user) 
+        throws IOException {
+    
+    Integer currentSessionId = (Integer) request.getSession().getAttribute("idSession");
+    
+    if (currentSessionId != null && sessionDAO.terminateOtherSessions(user.getUuidUser(), currentSessionId)) {
+        response.getWriter().write("SUCCESS: Todas las demás sesiones han sido cerradas.");
+    } else {
+        response.getWriter().write("ERROR: No se pudo completar la acción.");
+    }
     }
 
     private void handleTokenHistory(HttpServletRequest request, HttpServletResponse response, User user) 

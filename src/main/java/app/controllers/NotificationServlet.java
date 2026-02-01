@@ -16,12 +16,22 @@ public class NotificationServlet extends HttpServlet {
 
     private NotificationDAO notificationDAO = new NotificationDAO();
 
+    // ======================================================
+    // 1. MÉTODOS DE CICLO DE VIDA (GET / POST)
+    // ======================================================
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
         String pathInfo = request.getPathInfo();
         User currentUser = (User) request.getSession().getAttribute("user");
+
+        // Seguridad: Verificar sesión activa
+        if (currentUser == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
 
         switch (pathInfo != null ? pathInfo : "") {
             case "/list":
@@ -41,45 +51,82 @@ public class NotificationServlet extends HttpServlet {
             throws ServletException, IOException {
         
         String pathInfo = request.getPathInfo();
-        
+        User currentUser = (User) request.getSession().getAttribute("user");
+
+        // Seguridad: Verificar sesión activa
+        if (currentUser == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
+
         if ("/mark-as-read".equals(pathInfo)) {
-            handleMarkAsRead(request, response);
+            handleMarkAsRead(request, response, currentUser);
+        } else {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
     }
 
+    // ======================================================
+    // 2. CONSULTAS Y VISUALIZACIÓN
+    // ======================================================
+
+    /**
+     * Carga la lista de notificaciones para el panel del usuario.
+     */
     private void handleListNotifications(HttpServletRequest request, HttpServletResponse response, User user) 
             throws ServletException, IOException {
         
-        // Obtenemos las últimas 20 notificaciones
+        // Recuperamos las notificaciones vinculadas al UUID del usuario
         List<Notification> list = notificationDAO.getByUser(user.getUuidUser());
         
-        // Las pasamos al JSP o podrías convertirlas a JSON aquí mismo
         request.setAttribute("notifications", list);
         request.getRequestDispatcher("/notifications-panel.jsp").forward(request, response);
     }
 
+    /**
+     * Retorna el conteo de notificaciones no leídas (para el indicador UI).
+     */
     private void handleUnreadCount(HttpServletRequest request, HttpServletResponse response, User user) 
             throws IOException {
         
         int count = notificationDAO.countUnread(user.getUuidUser());
         
-        // Retornamos solo el número (ideal para el globito rojo de la UI)
+        // Respuesta plana optimizada para llamadas AJAX/Fetch
         response.setContentType("text/plain");
+        response.setCharacterEncoding("UTF-8");
         response.getWriter().write(String.valueOf(count));
     }
 
-    private void handleMarkAsRead(HttpServletRequest request, HttpServletResponse response) 
+    // ======================================================
+    // 3. ACCIONES Y ESTADOS
+    // ======================================================
+
+    /**
+     * Cambia el estado de una notificación específica a 'leída'.
+     */
+    private void handleMarkAsRead(HttpServletRequest request, HttpServletResponse response, User user) 
             throws IOException {
         
+        String idParam = request.getParameter("id");
+
+        if (idParam == null) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write("ERROR: ID requerido");
+            return;
+        }
+
         try {
-            int idNotification = Integer.parseInt(request.getParameter("id"));
-            if (notificationDAO.markAsRead(idNotification)) {
+            int idNotification = Integer.parseInt(idParam);
+            
+            // Sincronización con el DAO: Se valida que la notificación pertenezca al usuario en sesión
+            if (notificationDAO.markAsRead(idNotification, user.getUuidUser())) {
                 response.getWriter().write("SUCCESS");
             } else {
-                response.getWriter().write("ERROR");
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.getWriter().write("ERROR: No autorizada o no encontrada");
             }
         } catch (NumberFormatException e) {
-            response.setStatus(400);
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.getWriter().write("INVALID_ID");
         }
     }
