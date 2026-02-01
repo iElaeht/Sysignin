@@ -1,5 +1,6 @@
 package app.filters;
 
+import app.models.User;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -7,46 +8,53 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 
-// Este filtro intercepta todas las peticiones (/*)
 @WebFilter("/*")
 public class AuthFilter implements Filter {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
+        
+        HttpServletRequest req = (HttpServletRequest) request;
+        HttpServletResponse res = (HttpServletResponse) response;
+        String path = req.getRequestURI().substring(req.getContextPath().length());
 
-        HttpServletRequest httpRequest = (HttpServletRequest) request;
-        HttpServletResponse httpResponse = (HttpServletResponse) response;
-        HttpSession session = httpRequest.getSession(false);
+        // 1. RECURSOS PÚBLICOS (Sin restricciones)
+        boolean isPublicPath = path.startsWith("/auth/") || 
+                               path.startsWith("/assets/") || 
+                               path.contains("/public/") || 
+                               path.equals("/index.jsp") ||
+                               path.equals("/") ||
+                               path.isEmpty();
 
-        String loginURI = httpRequest.getContextPath() + "/login.jsp";
-        String registerURI = httpRequest.getContextPath() + "/register.jsp";
-        String authServletURI = httpRequest.getContextPath() + "/auth"; // Permitir llamadas al servlet de auth
-
-        // 1. Determinar si la petición es para una página pública o recursos estáticos
-        boolean isLoginRequest = httpRequest.getRequestURI().equals(loginURI);
-        boolean isRegisterRequest = httpRequest.getRequestURI().equals(registerURI);
-        boolean isAuthServlet = httpRequest.getRequestURI().startsWith(authServletURI);
-        boolean isStaticResource = httpRequest.getRequestURI().contains("/assets/") || 
-                                    httpRequest.getRequestURI().endsWith(".css") || 
-                                    httpRequest.getRequestURI().endsWith(".js");
-
-        // 2. Verificar si el usuario está logueado (objeto "user" en sesión)
-        boolean isLoggedIn = (session != null && session.getAttribute("user") != null);
-
-        // 3. Lógica de redirección
-        if (isLoggedIn || isLoginRequest || isRegisterRequest || isAuthServlet || isStaticResource) {
-            // Si está logueado o va a una página permitida, dejarlo pasar
+        if (isPublicPath) {
             chain.doFilter(request, response);
-        } else {
-            // Si no está logueado y quiere entrar a una ruta privada, mandarlo al login
-            httpResponse.sendRedirect(loginURI + "?error=unauthorized");
+            return;
         }
+
+        // 2. VERIFICAR SESIÓN
+        HttpSession session = req.getSession(false);
+        User user = (session != null) ? (User) session.getAttribute("user") : null;
+
+        if (user == null) {
+            // Si es una petición AJAX, enviamos 401, si es navegación, redirigimos
+            String requestedWith = req.getHeader("X-Requested-With");
+            if ("XMLHttpRequest".equals(requestedWith)) {
+                res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Sesión expirada");
+            } else {
+                res.sendRedirect(req.getContextPath() + "/auth/loginView");
+            }
+            return;
+        }
+
+        // 3. SEGURIDAD POR ROLES (El toque maestro)
+        // Bloqueamos acceso a /admin/* si el usuario no es Admin
+        if (path.startsWith("/admin/") && !"Admin".equalsIgnoreCase(user.getRoles())) {
+            res.sendError(HttpServletResponse.SC_FORBIDDEN, "No tienes permisos de administrador.");
+            return;
+        }
+
+        // Si pasó todas las pruebas, adelante
+        chain.doFilter(request, response);
     }
-
-    @Override
-    public void init(FilterConfig filterConfig) throws ServletException {}
-
-    @Override
-    public void destroy() {}
 }
