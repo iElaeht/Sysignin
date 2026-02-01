@@ -5,26 +5,32 @@ import jakarta.mail.*;
 import jakarta.mail.internet.*;
 import java.util.Properties;
 
+/**
+ * SERVICIO: EmailService
+ * Descripción: Gestión de envíos de correo con plantillas HTML minimalistas.
+ * Optimizaciones: Multihilo nativo y corrección de detección de idioma.
+ */
 public class EmailService {
 
-    private final String host;
-    private final String port;
     private final String emailUser;
     private final String emailPass;
+    private final String appName = "Seguridad App";
 
     public EmailService() {
-        this.host = "smtp.gmail.com";
-        this.port = "587";
         this.emailUser = EnvConfig.get("EMAIL_USER");
         this.emailPass = EnvConfig.get("EMAIL_PASS");
     }
 
-    public void sendHTMLEmail(String to, String subject, String htmlBody) {
+    // ==========================================
+    // 1. LÓGICA DE ENVÍO (Multihilo)
+    // ==========================================
+
+    private void send(String to, String subject, String htmlBody) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", host);
-        props.put("mail.smtp.port", port);
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
 
         Session session = Session.getInstance(props, new Authenticator() {
             @Override
@@ -33,24 +39,132 @@ public class EmailService {
             }
         });
 
-        try {
-            Message message = new MimeMessage(session);
-            message.setFrom(new InternetAddress(emailUser));
-            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
-            message.setSubject(subject);
-            message.setContent(htmlBody, "text/html; charset=utf-8");
+        // Enviar en un hilo separado para no bloquear la aplicación
+        new Thread(() -> {
+            try {
+                MimeMessage message = new MimeMessage(session);
+                message.setFrom(new InternetAddress(emailUser, appName));
+                message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+                
+                // Forzamos el charset a UTF-8 para evitar problemas de tildes
+                message.setSubject(subject, "UTF-8");
+                message.setContent(wrapInTemplate(htmlBody), "text/html; charset=UTF-8");
+                
+                Transport.send(message);
+            } catch (Exception e) {
+                System.err.println(">>> [EMAIL ERROR]: " + e.getMessage());
+            }
+        }).start();
+    }
 
-            // Lo enviamos en un hilo separado para no bloquear al usuario
-            new Thread(() -> {
-                try {
-                    Transport.send(message);
-                } catch (MessagingException e) {
-                    System.err.println("Error enviando email: " + e.getMessage());
-                }
-            }).start();
+    // ==========================================
+    // 2. TOKENS DE VALIDACIÓN (4 métodos)
+    // ==========================================
 
-        } catch (MessagingException e) {
-            e.printStackTrace();
-        }
+    public void sendActivationToken(String to, String token) {
+        String body = "<h1>Activa tu cuenta</h1>" +
+                      "<p>Gracias por unirte. Usa el siguiente código para completar tu registro:</p>" +
+                      "<div class='token'>" + token + "</div>" +
+                      "<p style='font-size:12px;'>Este código expirará en 15 minutos.</p>";
+        send(to, "Código de activación - " + appName, body);
+    }
+
+    public void sendPasswordChangeToken(String to, String token) {
+        String body = "<h1>Cambio de contraseña</h1>" +
+                      "<p>Has solicitado cambiar tu clave de acceso. Tu código de verificación es:</p>" +
+                      "<div class='token' style='color:#e74c3c;'>" + token + "</div>" +
+                      "<p>Si no solicitaste esto, ignora este correo.</p>";
+        send(to, "Código de seguridad - " + appName, body);
+    }
+
+    public void sendEmailChangeToken(String to, String token) {
+        String body = "<h1>Confirmar nuevo correo</h1>" +
+                      "<p>Usa este código para verificar tu nueva dirección de correo electrónico:</p>" +
+                      "<div class='token' style='color:#f39c12;'>" + token + "</div>";
+        send(to, "Verificación de correo - " + appName, body);
+    }
+
+    public void sendRecoveryToken(String to, String token) {
+        String body = "<h1>Recuperación de acceso</h1>" +
+                      "<p>Tu código temporal para restablecer el acceso a tu cuenta es:</p>" +
+                      "<div class='token'>" + token + "</div>";
+        send(to, "Recupera tu cuenta - " + appName, body);
+    }
+
+    // ==========================================
+    // 3. ALERTAS DE SEGURIDAD (4 métodos)
+    // ==========================================
+
+    public void sendLoginFailedAlert(String to) {
+        String body = "<h1>Acceso bloqueado</h1>" +
+                      "<p>Se han detectado <strong>5 intentos fallidos</strong> de inicio de sesión.</p>" +
+                      "<p>Por seguridad, tu cuenta ha sido suspendida temporalmente por 15 minutos.</p>";
+        send(to, "Alerta de seguridad - " + appName, body);
+    }
+
+    public void sendBruteForceAlert(String to) {
+        String body = "<h1>Bloqueo preventivo</h1>" +
+                      "<p>Detectamos actividad inusual con el uso de tokens en tu cuenta.</p>" +
+                      "<p><strong>Acceso restringido por 15 minutos.</strong></p>";
+        send(to, "Actividad sospechosa detectada - " + appName, body);
+    }
+
+    public void sendNewLoginAlert(String to, String ip, String city, String device) {
+        String body = "<h1>Nuevo inicio de sesión</h1>" +
+                      "<p>Se ha accedido a tu cuenta desde una nueva ubicación:</p>" +
+                      "<div style='background:#f1f1f1; padding:15px; border-radius:5px;'>" +
+                      "• <strong>IP:</strong> " + ip + "<br>" +
+                      "• <strong>Ciudad:</strong> " + city + "<br>" +
+                      "• <strong>Dispositivo:</strong> " + device + "</div>";
+        send(to, "Nuevo inicio de sesión - " + appName, body);
+    }
+
+    public void sendSecurityAlert(String to, String details) {
+        String body = "<h1>Actividad reciente</h1>" +
+                      "<p>Se realizó la siguiente acción en tu cuenta:</p>" +
+                      "<p><strong>" + details + "</strong></p>";
+        send(to, "Aviso de seguridad - " + appName, body);
+    }
+
+    // ==========================================
+    // 4. NOTIFICACIONES DE ÉXITO (3 métodos)
+    // ==========================================
+
+    public void sendPrimaryEmailChangedAlert(String oldEmail) {
+        String body = "<h1>Correo actualizado</h1>" +
+                      "<p>Tu dirección de correo principal ha sido cambiada exitosamente.</p>" +
+                      "<p>Si no realizaste este cambio, contacta con soporte de inmediato.</p>";
+        send(oldEmail, "Cambio de correo exitoso - " + appName, body);
+    }
+
+    public void sendRecoveryEmailUpdatedAlert(String primaryEmail) {
+        String body = "<h1>Configuración actualizada</h1>" +
+                      "<p>Tu correo de recuperación ha sido actualizado correctamente.</p>";
+        send(primaryEmail, "Correo de recuperación actualizado - " + appName, body);
+    }
+
+    public void sendAccountDeletionNotice(String to) {
+        String body = "<h1>Cuenta desactivada</h1>" +
+                      "<p>Tu cuenta ha sido dada de baja de nuestro sistema exitosamente.</p>";
+        send(to, "Adiós - " + appName, body);
+    }
+
+    // ==========================================
+    // 5. DISEÑO (Template Minimalista)
+    // ==========================================
+
+    private String wrapInTemplate(String content) {
+        return "<!DOCTYPE html><html lang='es'>" +
+               "<head><meta charset='UTF-8'></head>" +
+               "<body style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif; background-color:#ffffff; color:#333; margin:0; padding:40px;'>" +
+               "<div style='max-width:450px; margin:0 auto; line-height:1.6;'>" +
+               "<div style='margin-bottom:40px; text-align:left; font-weight:bold; font-size:18px; color:#000;'>" + appName + "</div>" +
+               "<div style='font-size:15px;'>" + content + "</div>" +
+               "<div style='margin-top:50px; padding-top:20px; border-top:1px solid #eee; font-size:12px; color:#999;'>" +
+               "Este es un mensaje automático generado por nuestro sistema de seguridad. Por favor, no respondas a este correo." +
+               "</div></div>" +
+               "<style>" +
+               ".token { background:#f4f4f7; padding:20px; text-align:center; font-size:32px; font-weight:bold; letter-spacing:5px; border-radius:10px; margin:20px 0; color:#2d3748; }" +
+               "</style></body></html>";
     }
 }
