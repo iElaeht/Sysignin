@@ -37,8 +37,7 @@
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
-            <version>8.0.33</version>
-        </dependency>
+            <version>8.3.0</version> </dependency>
 
         <dependency>
             <groupId>org.mindrot</groupId>
@@ -66,8 +65,7 @@
         <dependency>
             <groupId>org.eclipse.angus</groupId>
             <artifactId>jakarta.mail</artifactId>
-            <version>2.0.2</version>
-        </dependency>
+            <version>2.0.3</version> </dependency>
     </dependencies>
 
     <build>
@@ -76,16 +74,15 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
-                <version>3.4.0</version> <configuration>
+                <version>3.4.0</version>
+                <configuration>
                     <failOnMissingWebXml>false</failOnMissingWebXml>
-                    <warSourceDirectory>src/main/webapp</warSourceDirectory>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
-                <configuration>
+                <version>3.12.1</version> <configuration>
                     <source>21</source>
                     <target>21</target>
                 </configuration>
