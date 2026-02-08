@@ -5,9 +5,11 @@ import java.time.LocalDateTime;
 public class AuditLog {
     private int idLog;
     private Integer idUser;
+    private String userEmail;
     private String userIdentifier;
     private String action;
     private String ipSource;
+    private String location;
     private String userAgent;
     private String details;
     private LocalDateTime createdAt;
@@ -76,6 +78,22 @@ public class AuditLog {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
     
 }

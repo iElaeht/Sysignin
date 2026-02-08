@@ -48,7 +48,7 @@
     <div id="loginContainer" class="container d-flex justify-content-center align-items-center vh-100 transition-all">
       <div class="card shadow-lg p-4" style="max-width: 420px; width: 100%;">
         <div class="text-center mb-4">
-          <h2 class="fw-bold">Bienvenido de nuevo</h2>
+          <h2 class="fw-bold">Bienvenido</h2>
           <p class="text-muted">Ingresa para gestionar tu cuenta</p>
         </div>
 
@@ -57,7 +57,7 @@
             <label class="form-label small fw-bold">Usuario o Correo</label>
             <div class="input-group">
               <span class="input-group-text bg-white"><i class="fa-solid fa-user text-muted"></i></span>
-              <input type="text" class="form-control" id="identifier" name="identifier" placeholder="usuario@correo.com" required />
+              <input type="text" class="form-control" id="identifier" name="identifier" placeholder="usuario@example.com" required />
             </div>
           </div>
 
@@ -90,13 +90,13 @@
           <div class="col-6">
             <a href="${pageContext.request.contextPath}/auth/google" class="btn-social shadow-sm">
               <img src="https://authjs.dev/img/providers/google.svg" alt="G">
-              <span>Google</span>
+              <span class="ms-2">Google</span>
             </a>
           </div>
           <div class="col-6">
             <a href="${pageContext.request.contextPath}/auth/microsoft" class="btn-social shadow-sm">
-              <img src="https://authjs.dev/img/providers/microsoft.svg" alt="M">
-              <span>Microsoft</span>
+              <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="M">
+              <span class="ms-2">Microsoft</span>
             </a>
           </div>
         </div>

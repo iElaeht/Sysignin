@@ -289,40 +289,46 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const identifier = elements.identifierInput.value.trim();
             const password = elements.loginPassword.value;
+            
             try {
                 Swal.fire({
-                    title: 'Verificando...', didOpen: () => { Swal.showLoading(); }, allowOutsideClick: false
+                    title: 'Verificando...', 
+                    didOpen: () => { Swal.showLoading(); }, 
+                    allowOutsideClick: false
                 });
 
                 const params = new URLSearchParams();
                 params.append("identifier", identifier);
                 params.append("password", password);
+
                 const resp = await fetch(`${API_PATH}login`, { 
                     method: 'POST', 
                     body: params,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
+                    headers: ajaxHeaders
                 });
+                
                 const result = await resp.json(); 
+                Swal.close();
+
                 if (result.status === "success") {
-                    Swal.close();
+                    // CASO 1: Login directo (IP conocida)
                     showToast('success', result.message);
-                    
-                    // En lugar de abrir el modal, redirigimos directamente
-                    setTimeout(() => {
-                        window.location.href = result.redirect; 
-                    }, 1500);
+                    setTimeout(() => { window.location.href = result.redirect; }, 1500);
+
                 } else if (result.status === "needs_verification") { 
-                    // OPCIONAL: Por si en el futuro quieres forzar 2FA
-                    Swal.close();
-                    prepareVerifyUI('login', result.email || identifier); 
-                    showToast('info', 'Se requiere verificación adicional');
+                    // CASO 2: IP Nueva / Primer Login (Activación de 2FA)
+                    // Usamos el email que nos devuelve el servidor para el modal
+                    prepareVerifyUI('login', result.email); 
+                    showToast('info', 'Nuevo dispositivo detectado. Verifica tu correo.');
                     startResendCooldown(30);
+
                 } else {
-                    Swal.fire("Error", result.message, "error");
+                    // CASO 3: Error de credenciales o bloqueo
+                    Swal.fire("Atención", result.message, "warning");
                 }
-            } catch (err) { showToast('error', 'Error de conexión'); }
+            } catch (err) { 
+                showToast('error', 'Error de conexión'); 
+            }
         });
     }
 });

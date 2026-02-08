@@ -9,8 +9,7 @@ import java.util.List;
 
 /**
  * DAO: UserDAO
- * Estado: Optimizado y Limpio
- * Descripción: Maneja la persistencia de usuarios, seguridad de tokens y control de acceso.
+ * Estado: Optimizado y Limpio con Retorno de ID
  */
 public class UserDAO {
 
@@ -18,12 +17,13 @@ public class UserDAO {
     // 1. REGISTRO Y ACTIVACIÓN
     // ======================================================
 
-    public boolean registerUser(User user) {
+    public int registerUser(User user) {
         String sql = "INSERT INTO Users (UuidUser, Username, Password, Email, RegistrationIp, Country, City, Token, State, TokenExpiration, TokenAttempts, LoginAttempts) " +
                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Inactive', DATE_ADD(NOW(), INTERVAL 15 MINUTE), 0, 0)";
         
         try (Connection conn = ConnectionDB.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
             ps.setString(1, user.getUuidUser());
             ps.setString(2, user.getUsername());
             ps.setString(3, user.getPassword());
@@ -32,10 +32,19 @@ public class UserDAO {
             ps.setString(6, user.getCountry());
             ps.setString(7, user.getCity());
             ps.setString(8, user.getToken());
-            return ps.executeUpdate() > 0;
+
+            int affectedRows = ps.executeUpdate();
+            if (affectedRows > 0) {
+                try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        return generatedKeys.getInt(1); // Retorna el ID generado
+                    }
+                }
+            }
+            return 0;
         } catch (SQLException e) { 
             e.printStackTrace(); 
-            return false; 
+            return 0; 
         }
     }
 
@@ -230,51 +239,56 @@ public class UserDAO {
             return ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); return 0; }
     }
-
+    public void updateRegistrationIp(String email, String newIp) {
+        // CAMBIO: Debe ser RegistrationIp (con R y I mayúsculas) para coincidir con tu tabla
+        String sql = "UPDATE Users SET RegistrationIp = ? WHERE Email = ?";
+        
+        try (Connection conn = ConnectionDB.getConnection(); 
+            PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setString(1, newIp);
+            ps.setString(2, email);
+            ps.executeUpdate();
+            
+            System.out.println("LOG: IP de registro actualizada a " + newIp + " para " + email);
+            
+        } catch (SQLException e) {
+            System.err.println("ERROR en updateRegistrationIp: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
     // ======================================================
     // 6. MAPEADOR (JDBC -> MODEL)
     // ======================================================
 
     private User mapUser(ResultSet rs) throws SQLException {
-        User u = new User();
-        u.setIdUser(rs.getInt("IdUser"));
-        u.setUuidUser(rs.getString("UuidUser"));
-        u.setUsername(rs.getString("Username"));
-        u.setPassword(rs.getString("Password"));
-        u.setEmail(rs.getString("Email"));
-        u.setBackupEmail(rs.getString("BackupEmail"));
-        u.setPhoneNumber(rs.getString("PhoneNumber"));
-        u.setGender(rs.getString("Gender"));
-        u.setRoles(rs.getString("Roles"));
-        u.setState(rs.getString("State"));
-        u.setToken(rs.getString("Token"));
-        u.setTokenAttempts(rs.getInt("TokenAttempts"));
-        u.setLoginAttempts(rs.getInt("LoginAttempts"));
-        u.setRegistrationIp(rs.getString("RegistrationIp"));
-        u.setLastIp(rs.getString("LastIp"));
-        u.setCountry(rs.getString("Country"));
-        u.setCity(rs.getString("City"));
-        u.setSocialId(rs.getString("SocialId"));
-        u.setAuthProvider(rs.getString("AuthProvider"));
+            User u = new User();
+            u.setIdUser(rs.getInt("IdUser"));
+            u.setUuidUser(rs.getString("UuidUser"));
+            u.setUsername(rs.getString("Username"));
+            u.setPassword(rs.getString("Password"));
+            u.setEmail(rs.getString("Email"));
+            u.setBackupEmail(rs.getString("BackupEmail"));
+            u.setPhoneNumber(rs.getString("PhoneNumber"));
+            u.setGender(rs.getString("Gender"));
+            u.setRoles(rs.getString("Roles"));
+            u.setState(rs.getString("State"));
+            u.setToken(rs.getString("Token"));
+            u.setTokenAttempts(rs.getInt("TokenAttempts"));
+            u.setLoginAttempts(rs.getInt("LoginAttempts"));
+            u.setRegistrationIp(rs.getString("RegistrationIp"));
+            u.setLastIp(rs.getString("LastIp"));
+            u.setCountry(rs.getString("Country"));
+            u.setCity(rs.getString("City"));
+            u.setSocialId(rs.getString("SocialId"));
+            u.setAuthProvider(rs.getString("AuthProvider"));
 
-        // Conversión segura de Timestamps a LocalDateTime
-        // Conversión explicita para que el IDE reconozca el uso del import
-        Timestamp tsPenalty = rs.getTimestamp("PenaltyTime");
-        if (tsPenalty != null) {
-            LocalDateTime penaltyTime = tsPenalty.toLocalDateTime();
-            u.setPenaltyTime(penaltyTime);
+            // Esto activa el import y maneja nulos automáticamente
+            u.setPenaltyTime(rs.getObject("PenaltyTime", LocalDateTime.class));
+            u.setTokenExpiration(rs.getObject("TokenExpiration", LocalDateTime.class));
+            u.setDateRegistration(rs.getObject("DateRegistration", LocalDateTime.class));
+            u.setLastLogin(rs.getObject("LastLogin", LocalDateTime.class));
+            
+            return u;
         }
-        Timestamp tsExp = rs.getTimestamp("TokenExpiration");
-        if (tsExp != null) {
-            LocalDateTime expirationTime = tsExp.toLocalDateTime();
-            u.setTokenExpiration(expirationTime);
-        }
-        Timestamp tsReg = rs.getTimestamp("DateRegistration");
-        if (tsReg != null) u.setDateRegistration(tsReg.toLocalDateTime());
-        
-        Timestamp tsLogin = rs.getTimestamp("LastLogin");
-        if (tsLogin != null) u.setLastLogin(tsLogin.toLocalDateTime());
-        
-        return u;
-    }
 }

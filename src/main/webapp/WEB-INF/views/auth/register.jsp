@@ -48,7 +48,7 @@
             <label for="username" class="form-label">Nombre de usuario</label>
             <div class="input-group">
               <span class="input-group-text"><i class="fa-solid fa-at"></i></span>
-              <input type="text" class="form-control" id="username" name="username" placeholder="TuUsuario123" required />
+              <input type="text" class="form-control" id="username" name="username" placeholder="username" required />
             </div>
           </div>
 
@@ -56,7 +56,7 @@
             <label for="email" class="form-label">Correo electrónico</label>
             <div class="input-group">
               <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
-              <input type="email" class="form-control" id="email" name="email" placeholder="ejemplo@correo.com" required />
+              <input type="email" class="form-control" id="email" name="email" placeholder="example@example.com" required />
             </div>
           </div>
 

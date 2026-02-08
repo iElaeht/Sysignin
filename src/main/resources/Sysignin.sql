@@ -16,6 +16,7 @@ CREATE TABLE Users (
     -- Ubicación y Auditoría (NetUtils)
     RegistrationIp VARCHAR(60) NOT NULL,
     LastIp VARCHAR(60),
+    TrustedIpDate DATETIME DEFAULT NULL,
     Country VARCHAR(100) DEFAULT 'Unknown',
     City VARCHAR(100) DEFAULT 'Unknown',
     District VARCHAR(100) DEFAULT NULL,
@@ -75,9 +76,11 @@ CREATE TABLE Notifications (
 CREATE TABLE AuditLogs (
     IdLog INT AUTO_INCREMENT PRIMARY KEY,
     IdUser INT,
+    UserEmail VARCHAR(150),
     UserIdentifier VARCHAR(80),
     Action VARCHAR(100) NOT NULL,
     IpSource VARCHAR(60),
+    Location VARCHAR(255),
     UserAgent VARCHAR(255),
     Details TEXT,
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,

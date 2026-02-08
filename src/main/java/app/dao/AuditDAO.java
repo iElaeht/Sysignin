@@ -6,6 +6,7 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;  
 import java.util.List;
+
 /**
  * DAO: AuditDAO
  * Categoría: Seguridad y Monitoreo
@@ -14,19 +15,19 @@ import java.util.List;
 public class AuditDAO {
 
     // ======================================================
-    // 1. REGISTRO DE EVENTOS (INSERT)
+    // 1. REGISTRO DE EVENTOS (MODIFICADO)
     // ======================================================
 
     /**
-     * Inserta un nuevo registro de auditoría en la base de datos.
+     * Inserta un nuevo registro de auditoría incluyendo Email y Ubicación.
      */
-    public void insertLog(Integer idUser, String identifier, String action, String ip, String userAgent, String details) {
-        String sql = "INSERT INTO AuditLogs (IdUser, UserIdentifier, Action, IpSource, UserAgent, Details) VALUES (?, ?, ?, ?, ?, ?)";
+    public void insertLog(Integer idUser, String identifier, String email, String action, String ip, String location, String userAgent, String details) {
+        // Añadimos UserEmail y Location a la consulta SQL
+        String sql = "INSERT INTO AuditLogs (IdUser, UserIdentifier, UserEmail, Action, IpSource, Location, UserAgent, Details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         
         try (Connection conn = ConnectionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             
-            // Manejo de IdUser nulo para acciones de usuarios no autenticados
             if (idUser != null) {
                 ps.setInt(1, idUser); 
             } else {
@@ -34,10 +35,12 @@ public class AuditDAO {
             }
             
             ps.setString(2, (identifier != null) ? identifier : "UNKNOWN");
-            ps.setString(3, action);
-            ps.setString(4, ip);
-            ps.setString(5, userAgent);
-            ps.setString(6, details);
+            ps.setString(3, email);    // Nueva columna: Email
+            ps.setString(4, action);
+            ps.setString(5, ip);
+            ps.setString(6, location); // Nueva columna: Ubicación (Ciudad, País)
+            ps.setString(7, userAgent);
+            ps.setString(8, details);
             
             ps.executeUpdate();
             
@@ -47,13 +50,9 @@ public class AuditDAO {
     }
 
     // ======================================================
-    // 2. CONSULTAS DE SEGURIDAD (ANTI-BRUTE FORCE)
+    // 2. CONSULTAS DE SEGURIDAD (SIN CAMBIOS)
     // ======================================================
 
-    /**
-     * Cuenta intentos fallidos en un rango de tiempo específico.
-     * @param minutes Cantidad de minutos hacia atrás desde el momento actual.
-     */
     public int countRecentFailures(String identifier, String action, int minutes) {
         String sql = "SELECT COUNT(*) FROM AuditLogs WHERE UserIdentifier = ? AND Action = ? "
                    + "AND CreatedAt > DATE_SUB(NOW(), INTERVAL ? MINUTE)";
@@ -75,12 +74,9 @@ public class AuditDAO {
     }
 
     // ======================================================
-    // 3. RECUPERACIÓN DE HISTORIAL (LISTS)
+    // 3. RECUPERACIÓN DE HISTORIAL (MODIFICADO PARA MAPEO MODERNO)
     // ======================================================
 
-    /**
-     * Obtiene los últimos 100 registros de un usuario específico.
-     */
     public List<AuditLog> getLogsByUser(String identifier) {
         List<AuditLog> list = new ArrayList<>();
         String sql = "SELECT * FROM AuditLogs WHERE UserIdentifier = ? ORDER BY CreatedAt DESC LIMIT 100";
@@ -100,9 +96,6 @@ public class AuditDAO {
         return list;
     }
 
-    /**
-     * Obtiene los últimos 200 registros globales para el panel de administración.
-     */
     public List<AuditLog> getGlobalLogs() {
         List<AuditLog> list = new ArrayList<>();
         String sql = "SELECT * FROM AuditLogs ORDER BY CreatedAt DESC LIMIT 200";
@@ -121,34 +114,26 @@ public class AuditDAO {
     }
 
     // ======================================================
-    // 4. MAPEADOR INTERNO (JDBC TO MODEL)
+    // 4. MAPEADOR INTERNO (ACTUALIZADO)
     // ======================================================
 
-    /**
-     * Transfiere los datos del ResultSet al objeto AuditLog.
-     * Aquí se realiza la conversión crítica de Timestamp a LocalDateTime.
-     */
     private AuditLog mapAudit(ResultSet rs) throws SQLException {
         AuditLog log = new AuditLog();
         log.setIdLog(rs.getInt("IdLog"));
         
-        // Manejo de valores nulos en IdUser
         int idUser = rs.getInt("IdUser");
         log.setIdUser(rs.wasNull() ? null : idUser);
         
         log.setUserIdentifier(rs.getString("UserIdentifier"));
+        log.setUserEmail(rs.getString("UserEmail")); // Mapeo de la nueva columna
         log.setAction(rs.getString("Action"));
         log.setIpSource(rs.getString("IpSource"));
+        log.setLocation(rs.getString("Location"));   // Mapeo de la nueva columna
         log.setUserAgent(rs.getString("UserAgent"));
         log.setDetails(rs.getString("Details"));
         
-        // Conversión de fecha
-        Timestamp ts = rs.getTimestamp("CreatedAt");
-        if (ts != null) {
-            // Se usa LocalDateTime explícitamente para validar el import
-            LocalDateTime ldt = ts.toLocalDateTime();
-            log.setCreatedAt(ldt);
-        }
+        // Uso de getObject para activar el import de LocalDateTime y evitar el tono gris
+        log.setCreatedAt(rs.getObject("CreatedAt", LocalDateTime.class));
         
         return log;
     }
